@@ -66,6 +66,8 @@ static void reflect_ox3(GridS *pGrid);
 static Real grav_pot2(const Real x1, const Real x2, const Real x3);
 static Real grav_pot3(const Real x1, const Real x2, const Real x3);
 
+char name[50];
+
 /*=========================== PUBLIC FUNCTIONS ===============================*/
 /*----------------------------------------------------------------------------*/
 /* problem:  */
@@ -110,6 +112,13 @@ void problem(DomainS *pDomain)
   angle = par_getd("problem","angle");
   angle = (angle/180.)*PI;
 #endif
+
+/*read VALIIc data*/
+/*see initialisation_user.h.spicule1_mpi in smaug_pmode/models*/
+    sprintf(name, "%s_partroj.dat", "parcollision");
+    FILE *fid = fopen(name,"w");
+    fclose(fid);
+
 
 /* 2D PROBLEM --------------------------------------------------------------- */
 /* Initialize two fluids with interface at y=0.0.  Pressure scaled to give a
@@ -669,12 +678,12 @@ static void reflect_ox3(GridS *pGrid)
 
 static Real grav_pot2(const Real x1, const Real x2, const Real x3)
 {
-  return 0.1*x2;
+  return 287*x2;
 }
 /*! \fn static Real grav_pot3(const Real x1, const Real x2, const Real x3)
  *  \brief Gravitational potential; g = 0.1
  */
 static Real grav_pot3(const Real x1, const Real x2, const Real x3)
 {
-  return 0.1*x3;
+  return 287*x3;
 }

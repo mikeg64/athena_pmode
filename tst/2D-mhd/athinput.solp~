@@ -67,7 +67,7 @@ kDisp           = 0         # k-displacement measured in cells of this level
 <problem>
 gamma = 1.666666667         # gamma = C_p/C_v
 amp   = 0.01
-b0    = 0.0
+b0    = 0.00707107
 iprob = 1                   # iprob=4 or 5: rotated B
 angle = 90.0                # only needed for MHD sims
 rhoh  = 3.0                 # density of heavy material
