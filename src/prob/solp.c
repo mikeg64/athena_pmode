@@ -79,6 +79,11 @@ void problem(DomainS *pDomain)
   int is,ie,js,je,ks,ke,iprob;
   long int iseed = -1;
   Real amp,x1,x2,x3,lx,ly,lz,rhoh,L_rot,fact;
+
+  float val3c[132][4];
+
+  char st1[100],st2[100],st3[100],st4[100];
+  int ntt;
 #ifdef MHD
   Real b0,angle;
 #endif
@@ -115,9 +120,24 @@ void problem(DomainS *pDomain)
 
 /*read VALIIc data*/
 /*see initialisation_user.h.spicule1_mpi in smaug_pmode/models*/
-    sprintf(name, "%s_partroj.dat", "parcollision");
-    FILE *fid = fopen(name,"w");
+    
+    FILE *fid=fopen("../tst/2D-mhd/VALMc_rho_132_test_sac_all.dat","r");
+    for(i=0; i<132; i++)
+               {
+                 fscanf(fatmos, " %s %s %s %s %n", st1, st2, st3, st4,&ntt);
+                 val3c[131-i][0]=atof(st1); //height
+		 val3c[131-i][1]=atof(st2); //temp
+		 val3c[131-i][2]=atof(st3); //dens
+		 val3c[131-i][3]=atof(st4); //pres
+                //if(p->ipe==1)
+            
+              }
     fclose(fid);
+
+/*lagrange interpolation*/
+/*   % t1=(xval-x(i+1))/(x(i)-x(i-1));
+     % t2=(xval-x(i))/(x(i+1)-x(i));
+     % y =t1*f(i)+t2*f(i+1); */  
 
 
 /* 2D PROBLEM --------------------------------------------------------------- */
