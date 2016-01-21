@@ -31,9 +31,9 @@ dmax    = 2.1
 palette = rainbow
 
 <time>
-cour_no         = 0.8       # The Courant, Friedrichs, & Lewy (CFL) Number
+cour_no         = 0.1       # The Courant, Friedrichs, & Lewy (CFL) Number
 nlim            = 100000    # cycle limit
-tlim            = 6.0       # time limit
+tlim            = 600000.0       # time limit
 
 <domain1>
 level           = 0         # refinement level this Domain (root=0)
@@ -44,8 +44,8 @@ bc_ix1          = 4         # boundary condition flag for inner-I (X1)
 bc_ox1          = 4         # boundary condition flag for outer-I (X1)
 
 Nx2             = 128       # Number of zones in X2-direction
-x2min           = 133333.3    # minimum value of X2
-x2max           = 6000000.0 # maximum value of X2
+x2min           = 111583.330000    # minimum value of X2
+x2max           = 5799555.6 # maximum value of X2
 bc_ix2          = 1         # boundary condition flag for inner-J (X2)
 bc_ox2          = 1         # boundary condition flag for outer-J (X2)
 
@@ -67,7 +67,7 @@ kDisp           = 0         # k-displacement measured in cells of this level
 <problem>
 gamma = 1.666666667         # gamma = C_p/C_v
 amp   = 0.01
-b0    = 0.00707107
+b0    = 0.0
 iprob = 1                   # iprob=4 or 5: rotated B
 angle = 90.0                # only needed for MHD sims
 rhoh  = 3.0                 # density of heavy material

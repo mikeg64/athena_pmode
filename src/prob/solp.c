@@ -80,7 +80,7 @@ void problem(DomainS *pDomain)
   long int iseed = -1;
   Real amp,x1,x2,x3,lx,ly,lz,rhoh,L_rot,fact;
 
-  float val3c[132][4];
+  double val3c[132][4],rho,pres,val;
 
   char st1[100],st2[100],st3[100],st4[100];
   int ntt;
@@ -122,17 +122,35 @@ void problem(DomainS *pDomain)
 /*see initialisation_user.h.spicule1_mpi in smaug_pmode/models*/
     
     FILE *fid=fopen("../tst/2D-mhd/VALMc_rho_132_test_sac_all.dat","r");
+    printf("%d %d %d %d %d %d\n",is,js,ks,ie,je,ke);
     for(i=0; i<132; i++)
                {
-                 fscanf(fatmos, " %s %s %s %s %n", st1, st2, st3, st4,&ntt);
-                 val3c[131-i][0]=atof(st1); //height
-		 val3c[131-i][1]=atof(st2); //temp
-		 val3c[131-i][2]=atof(st3); //dens
-		 val3c[131-i][3]=atof(st4); //pres
-                //if(p->ipe==1)
+                 //fscanf(fid, " %s %s %s %s %n", st1, st2, st3, st4,&ntt);
+	         fscanf(fid, " %s %s %s %s", st1, st2, st3, st4);
+		 //fscanf(fid, " %g %g %g %g", &val3c[131-i][0], &val3c[131-i][0], &val3c[131-i][0], &val3c[131-i][0]);
+                 //printf("%s %s %s %s\n",st1,st2,st3,st4);
+                 sscanf(st1,"%lf",&val); //height
+                 val3c[131-i][0]=val;
+		 sscanf(st2,"%lf",&val); //temp
+		 val3c[131-i][1]=val;
+		 sscanf(st3,"%lf",&val); //dens
+		 val3c[131-i][2]=val;
+		 sscanf(st4,"%lf",&val); //pres
+		 val3c[131-i][3]=val;
+
+                 
+
             
               }
     fclose(fid);
+
+             for(i=0; i<132; i++)
+                 if((i+js)<=je)
+		{
+		  cc_pos(pGrid,is,i+js,ks,&x1,&x2,&x3);
+                  printf("%f %f %f %f %f\n",x2, val3c[i][0], val3c[i][1], val3c[i][2], val3c[i][3]);
+                //if(p->ipe==1)
+                 }
 
 /*lagrange interpolation*/
 /*   % t1=(xval-x(i+1))/(x(i)-x(i-1));
@@ -140,34 +158,29 @@ void problem(DomainS *pDomain)
      % y =t1*f(i)+t2*f(i+1); */  
 
 
+
+
+
+/*w[encode3_uin(p,i,j,ii[2],energyb)]=((pres[i][j]-((bsq[i][j])/2))/(gamma-1))+(bsq[i][j]/2);*/
 /* 2D PROBLEM --------------------------------------------------------------- */
 /* Initialize two fluids with interface at y=0.0.  Pressure scaled to give a
  * sound speed of 1 at the interface in the light (lower, d=1) fluid 
  * Perturb V2 using single (iprob=1) or multiple (iprob=2) mode 
  */
 
-  if (pGrid->Nx[2] == 1) {
+if (pGrid->Nx[2] == 1) {
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
       for (i=is; i<=ie; i++) {
         cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
-	pGrid->U[k][j][i].d = 1.0;
-        pGrid->U[k][j][i].E = (1.0/Gamma - 0.1*x2)/Gamma_1;
+        rho=val3c[j-js][2];
+        pres=val3c[j-js][3];
+	pGrid->U[k][j][i].d = rho;
+        pGrid->U[k][j][i].E = (pres)/Gamma_1;
 	pGrid->U[k][j][i].M1 = 0.0;
-        if (iprob == 1) {
-          pGrid->U[k][j][i].M2 = amp/4.0*
-            (1.0+cos(2.0*PI*x1/lx))*(1.0+cos(2.0*PI*x2/ly));
-        }
-        else {
-          pGrid->U[k][j][i].M2 = amp*(ran2(&iseed) - 0.5)*
-            (1.0+cos(2.0*PI*x2/ly));
-	}
+        pGrid->U[k][j][i].M2 = 0.0;
         pGrid->U[k][j][i].M3 = 0.0;
-        if (x2 > 0.0) {
-	  pGrid->U[k][j][i].d = 2.0;
-          pGrid->U[k][j][i].M2 *= 2.0;
-          pGrid->U[k][j][i].E = (1.0/Gamma - 0.2*x2)/Gamma_1;
-	}
+        
 	pGrid->U[k][j][i].E+=0.5*SQR(pGrid->U[k][j][i].M2)/pGrid->U[k][j][i].d;
 #ifdef MHD
 	pGrid->B1i[k][j][i] = b0;
@@ -180,6 +193,10 @@ void problem(DomainS *pDomain)
 #endif
     }
   }
+
+
+
+
 
 /* Enroll gravitational potential to give acceleration in y-direction for 2D
  * Use special boundary condition routines.  In 2D, gravity is in the
