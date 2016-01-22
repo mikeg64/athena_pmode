@@ -66,7 +66,157 @@ static void reflect_ox3(GridS *pGrid);
 static Real grav_pot2(const Real x1, const Real x2, const Real x3);
 static Real grav_pot3(const Real x1, const Real x2, const Real x3);
 
+
+static void perturb(Grid *pGrid, Real dt);
+
 char name[50];
+
+
+
+
+
+
+
+
+/* ========================================================================== */
+
+/*
+ *  Function perturb
+ *
+ *  Shifts velocities so no net momentum change, normalizes to keep
+ *  dedt fixed, and then sets velocities
+ */
+
+static void perturb(Grid *pGrid, Real dt)
+{
+  int i, is=pGrid->is, ie = pGrid->ie;
+  int j, js=pGrid->js, je = pGrid->je;
+  int k, ks=pGrid->ks, ke = pGrid->ke;
+  int ind, mpierr;
+  Real dvol, aa, b, c, s, de, qa, v1, v2, v3;
+  Real t0, t0ij, t0i, t1, t1ij, t1i;
+  Real t2, t2ij, t2i, t3, t3ij, t3i;
+  Real m[4], gm[4];
+
+  /* Set the velocities in real space */
+  dvol = 1.0/((Real)(gnx1*gnx2*gnx3));
+  for (k=ks; k<=ke; k++) {
+    for (j=js; j<=je; j++) {
+      for (i=is; i<=ie; i++) {
+        ind = OFST(i-is,j-js,k-ks);
+        dv1[k][j][i] = fv1[ind][0]*dvol;
+        dv2[k][j][i] = fv2[ind][0]*dvol;
+        dv3[k][j][i] = fv3[ind][0]*dvol;
+      }
+    }
+  }
+
+  /* Calculate net momentum pertubation components t1, t2, t3 */
+  t0 = 0.0;  t1 = 0.0;  t2 = 0.0;  t3 = 0.0;
+  for (k=ks; k<=ke; k++) {
+    t0ij = 0.0;  t1ij = 0.0;  t2ij = 0.0;  t3ij = 0.0;
+    for (j=js; j<=je; j++) {
+      t0i = 0.0;  t1i = 0.0;  t2i = 0.0;  t3i = 0.0;
+      for (i=is; i<=ie; i++) {
+        t0i += pGrid->U[k][j][i].d;
+
+	/* The net momentum perturbation */
+        t1i += pGrid->U[k][j][i].d * dv1[k][j][i];
+        t2i += pGrid->U[k][j][i].d * dv2[k][j][i];
+        t3i += pGrid->U[k][j][i].d * dv3[k][j][i];
+      }
+      t0ij += t0i;  t1ij += t1i;  t2ij += t2i;  t3ij += t3i;
+    }
+    t0 += t0ij;  t1 += t1ij;  t2 += t2ij;  t3 += t3ij;
+  }
+
+#ifdef MPI_PARALLEL
+  /* Sum the perturbations over all processors */
+  m[0] = t0;  m[1] = t1;  m[2] = t2;  m[3] = t3;
+  mpierr = MPI_Allreduce(m, gm, 4, MPI_RL, MPI_SUM, MPI_COMM_WORLD);
+  if (mpierr) ath_error("[normalize]: MPI_Allreduce error = %d\n", mpierr);
+  t0 = gm[0];  t1 = gm[1];  t2 = gm[2];  t3 = gm[3];
+#endif /* MPI_PARALLEL */
+
+  /* Subtract the mean velocity perturbation so that the net momentum
+   * perturbation is zero. */
+  for (k=ks; k<=ke; k++) {
+    for (j=js; j<=je; j++) {
+      for (i=is; i<=ie; i++) {
+        dv1[k][j][i] -= t1/t0;
+        dv2[k][j][i] -= t2/t0;
+        dv3[k][j][i] -= t3/t0;
+      }
+    }
+  }
+
+  /* Calculate unscaled energy of perturbations */
+  t1 = 0.0;  t2 = 0.0;
+  for (k=ks; k<=ke; k++) {
+    t1ij = 0.0;  t2ij = 0.0;
+    for (j=js; j<=je; j++) {
+      t1i = 0.0;  t2i = 0.0;
+      for (i=is; i<=ie; i++) {
+        /* Calculate velocity pertubation at cell center from
+         * perturbations at cell faces */
+	v1 = dv1[k][j][i];
+	v2 = dv2[k][j][i];
+	v3 = dv3[k][j][i];
+
+        t1i += (pGrid->U[k][j][i].d)*(SQR(v1) + SQR(v2) + SQR(v3));
+	t2i +=  (pGrid->U[k][j][i].M1)*v1 + (pGrid->U[k][j][i].M2)*v2 +
+                     (pGrid->U[k][j][i].M3)*v3;
+      }
+      t1ij += t1i;  t2ij += t2i;
+    }
+    t1 += t1ij;  t2 += t2ij;
+  }
+
+#ifdef MPI_PARALLEL
+  /* Sum the perturbations over all processors */
+  m[0] = t1;  m[1] = t2;
+  mpierr = MPI_Allreduce(m, gm, 2, MPI_RL, MPI_SUM, MPI_COMM_WORLD);
+  if (mpierr) ath_error("[normalize]: MPI_Allreduce error = %d\n", mpierr);
+  t1 = gm[0];  t2 = gm[1];
+#endif /* MPI_PARALLEL */
+
+  /* Rescale to give the correct energy injection rate */
+  dvol = pGrid->dx1*pGrid->dx2*pGrid->dx3;
+  if (idrive == 0) {
+    /* driven turbulence */
+    de = dedt*dt;
+  } else {
+    /* decaying turbulence (all in one shot) */
+    de = dedt;
+  }
+  aa = 0.5*t1;
+  aa = MAX(aa,1.0e-20);
+  b = t2;
+  c = -de/dvol;
+  if(b >= 0.0)
+    s = (-2.0*c)/(b + sqrt(b*b - 4.0*aa*c));
+  else
+    s = (-b + sqrt(b*b - 4.0*aa*c))/(2.0*aa);
+
+  if (isnan(s)) ath_error("[perturb]: s is NaN!\n");
+
+  /* Apply momentum pertubations */
+  for (k=ks; k<=ke; k++) {
+    for (j=js; j<=je; j++) {
+      for (i=is; i<=ie; i++) {
+        qa = s*pGrid->U[k][j][i].d;
+        pGrid->U[k][j][i].M1 += qa*dv1[k][j][i];
+        pGrid->U[k][j][i].M2 += qa*dv2[k][j][i];
+        pGrid->U[k][j][i].M3 += qa*dv3[k][j][i];
+      }
+    }
+  }
+
+  return;
+}
+
+
+
 
 /*=========================== PUBLIC FUNCTIONS ===============================*/
 /*----------------------------------------------------------------------------*/
@@ -80,7 +230,7 @@ void problem(DomainS *pDomain)
   long int iseed = -1;
   Real amp,x1,x2,x3,lx,ly,lz,rhoh,L_rot,fact;
 
-  double val3c[132][4],rho,pres;
+  double val3c[132][4],rho,pres,val;
 
   char st1[100],st2[100],st3[100],st4[100];
   int ntt;
@@ -225,85 +375,26 @@ if (pGrid->Nx[2] == 1) {
     for (j=js; j<=je; j++) {
       for (i=is; i<=ie; i++) {
         cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
-	pGrid->U[k][j][i].d = 1.0;
-        pGrid->U[k][j][i].E = (1.0/Gamma - 0.1*x3)/Gamma_1;
+
+        rho=val3c[j-js][2];
+        pres=val3c[j-js][3];
+
+
+	pGrid->U[k][j][i].d = rho;
+        pGrid->U[k][j][i].E = (pres)/Gamma_1;
 	pGrid->U[k][j][i].M1 = 0.0;
 	pGrid->U[k][j][i].M2 = 0.0;
-        if (iprob == 1) {
-          pGrid->U[k][j][i].M3 = amp/8.0*(1.0+cos(2.0*PI*x1/lx))*
-            (1.0+cos(2.0*PI*x2/ly))*(1.0+cos(2.0*PI*x3/lz));
-        }
-        else {
-          pGrid->U[k][j][i].M3 = amp*(ran2(&iseed) - 0.5)*
-            (1.0+cos(2.0*PI*x3/lz));
-	}
-        if (x3 > 0.0) {
-	  pGrid->U[k][j][i].d = rhoh;
-          pGrid->U[k][j][i].M3 *= rhoh;
-          pGrid->U[k][j][i].E = (1.0/Gamma - 0.1*rhoh*x3)/Gamma_1;
-	}
+	pGrid->U[k][j][i].M3 = 0.0;
+        
 	pGrid->U[k][j][i].E+=0.5*SQR(pGrid->U[k][j][i].M3)/pGrid->U[k][j][i].d;
-#ifdef MHD
-        switch(iprob){
-        case 3: /* B only in light fluid, do not add B^2 to E, total P const */
-          if (x3 <= 0.0) {
-            pGrid->B1i[k][j][i] = b0;
-            if (i == ie) pGrid->B1i[k][j][ie+1] = b0;
-            pGrid->U[k][j][i].B1c = b0;
-          }
-          break;
-        case 4: /* discontinuous rotation of B by angle at interface */
-          if (x3 <= 0.0) {
-            pGrid->B1i[k][j][i] = b0;
-            if (i == ie) pGrid->B1i[k][j][ie+1] = b0;
-            pGrid->U[k][j][i].B1c = b0;
-            pGrid->U[k][j][i].E += 0.5*b0*b0;
-          }
-          else {
-            pGrid->B1i[k][j][i] = b0*cos(angle);
-            pGrid->B2i[k][j][i] = b0*sin(angle);
-            if (i == ie) pGrid->B1i[k][j][ie+1] = b0*cos(angle);
-            if (j == je) pGrid->B2i[k][je+1][i] = b0*sin(angle);
-            pGrid->U[k][j][i].B1c = b0*cos(angle);
-            pGrid->U[k][j][i].B2c = b0*sin(angle);
-            pGrid->U[k][j][i].E += 0.5*b0*b0;
-          }
-          break;
-        case 5: /* rotation of B by angle over distance L_rot at interface */
-          if (x3 <= (-L_rot/2.0)) {
-            pGrid->B1i[k][j][i] = b0;
-            if (i == ie) pGrid->B1i[k][j][ie+1] = b0;
-            pGrid->U[k][j][i].B1c = b0;
-            pGrid->U[k][j][i].E += 0.5*b0*b0;
-          }
-          else if (x3 >= (L_rot/2.0)) {
-            pGrid->B1i[k][j][i] = b0*cos(angle);
-            pGrid->B2i[k][j][i] = b0*sin(angle);
-            if (i == ie) pGrid->B1i[k][j][ie+1] = b0*cos(angle);
-            if (j == je) pGrid->B2i[k][je+1][i] = b0*sin(angle);
-            pGrid->U[k][j][i].B1c = b0*cos(angle);
-            pGrid->U[k][j][i].B2c = b0*sin(angle);
-            pGrid->U[k][j][i].E += 0.5*b0*b0;
-          }
-          else {
-            fact = ((L_rot/2.0)+x3)/L_rot;
-            pGrid->B1i[k][j][i] = b0*cos(fact*angle);
-            pGrid->B2i[k][j][i] = b0*sin(fact*angle);
-            if (i == ie) pGrid->B1i[k][j][ie+1] = b0*cos(fact*angle);
-            if (j == je) pGrid->B2i[k][je+1][i] = b0*sin(fact*angle);
-            pGrid->U[k][j][i].B1c = b0*cos(fact*angle);
-            pGrid->U[k][j][i].B2c = b0*sin(fact*angle);
-            pGrid->U[k][j][i].E += 0.5*b0*b0;
-          }
 
-          break;
-        default:
-          pGrid->B1i[k][j][i] = b0;
-          if (i == ie) pGrid->B1i[k][j][ie+1] = b0;
-          pGrid->U[k][j][i].B1c = b0;
-          pGrid->U[k][j][i].E += 0.5*b0*b0;
-        }
+#ifdef MHD
+	pGrid->B1i[k][j][i] = b0;
+	pGrid->U[k][j][i].B1c = b0;
+        pGrid->U[k][j][i].E += 0.5*b0*b0;
 #endif
+
+
       }
     }
   }
@@ -383,6 +474,90 @@ VOutFun_t get_usr_out_fun(const char *name){
 
 void Userwork_in_loop(MeshS *pM)
 {
+
+
+  DomainS *pDomain = (DomainS*)&(pM->Domain[0][0]);
+  GridS *pGrid = pM->Domain[0][0].Grid;
+
+
+int i, is=pGrid->is, ie = pGrid->ie;
+  int j, js=pGrid->js, je = pGrid->je;
+  int k, ks=pGrid->ks, ke = pGrid->ke;
+  Real newtime;
+
+  if (isnan(pGrid->dt)) ath_error("Time step is NaN!");
+
+
+	qt=pGrid->time;
+
+	tdep=sin(qt*2.0*PI/s_period);
+
+
+
+
+	if (pGrid->Nx[2] == 1) {
+	  for (k=ks; k<=ke; k++) {
+	    for (j=js; j<=je; j++) {
+	      for (i=is; i<=ie; i++) {
+		cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
+
+		exp_x=exp(-r2/(delta_x*delta_x));
+		exp_z=exp(-r1/(delta_z*delta_z));
+		exp_xyz=sin(PI*yp*(n1+1)/xxmax)*sin(PI*zp*(n2+1)/yymax)*exp_z;
+
+		vvz=AA*exp_xyz*tdep;
+
+		pGrid->U[k][j][i].M2 += (pGrid->dt)*vvz*(pGrid->U[k][j][i].d);
+		pGrid->U[k][j][i].E += (pGrid->dt)*vvz*vvz*(pGrid->U[k][j][i].d)/2.0;
+	      }
+
+	    }
+	  }
+
+
+
+
+
+	w[fencode3_MODID(p,ii,mom1)]=w[fencode3_MODID(p,ii,mom1)]+(pGrid->dt)*vvz*(w[fencode3_MODID(p,ii,rho)]+w[fencode3_MODID(p,ii,rhob)]);
+	w[fencode3_MODID(p,ii,energy)]=w[fencode3_MODID(p,ii,energy)]+(pGrid->dt)*vvz*vvz*(w[fencode3_MODID(p,ii,rho)]+w[fencode3_MODID(p,ii,rhob)])/2.0;
+
+
+
+  if (idrive == 0) {  /* driven turbulence */
+    /* Integration has already been done, but time not yet updated */
+    newtime = pGrid->time + pGrid->dt;
+
+#ifndef IMPULSIVE_DRIVING
+    /* Drive on every time step */
+    perturb(pGrid, pGrid->dt);
+#endif /* IMPULSIVE_DRIVING */
+
+    if (newtime >= (tdrive+dtdrive)) {
+      /* If we start with large time steps so that tdrive would get way
+       * behind newtime, this makes sure we don't keep generating after
+       * dropping down to smaller time steps */
+      while ((tdrive+dtdrive) <= newtime) tdrive += dtdrive;
+
+#ifdef IMPULSIVE_DRIVING
+      /* Only drive at intervals of dtdrive */
+      perturb(pGrid, dtdrive);
+#endif /* IMPULSIVE_DRIVING */
+
+      /* Compute new spectrum after dtdrive.  Putting this after perturb()
+       * means we won't be applying perturbations from a new power spectrum
+       * just before writing outputs.  At the very beginning, we'll go a
+       * little longer before regenerating, but the energy injection rate
+       * was off on the very first timestep anyway.  When studying driven
+       * turbulence, all we care about is the saturated state. */
+     // generate();
+    }
+  }
+
+  return;
+
+
+
+
 }
 
 void Userwork_after_loop(MeshS *pM)
