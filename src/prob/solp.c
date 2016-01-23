@@ -485,6 +485,28 @@ int i, is=pGrid->is, ie = pGrid->ie;
   int k, ks=pGrid->ks, ke = pGrid->ke;
   Real newtime;
 
+  Real qt,tdep,s_period,AA;
+  Real delta_z, xxmax, yymax, xxmin, yymin;
+  Real exp_x,exp_z,exp_xyz;
+  Real r2,xp, yp,zp;
+  Real vvz;
+
+  Real xc1,xc2,xc3;
+
+  int n1,n2;
+
+  n1=0;
+  n2=0;
+
+
+  s_period=300.0; //Driver period
+  AA=350.0;       //Driver amplitude
+  xcz=0.5e6;
+  delta_z=0.004e6;
+
+
+
+
   if (isnan(pGrid->dt)) ath_error("Time step is NaN!");
 
 
@@ -494,6 +516,17 @@ int i, is=pGrid->is, ie = pGrid->ie;
 
 
 
+	if (pM->Nx[2] == 1)
+	{
+		cc_pos(pGrid,ie,je,ke,&x1,&x2,&x3);
+		xxmax=x1;
+		yymax=x3;
+		cc_pos(pGrid,is,js,ks,&x1,&x2,&x3);
+		xxmax=xxmax-x1;
+		yymax=yymax-x3;
+		xxmin=x1;
+		yymin=x3;
+	}
 
 	if (pGrid->Nx[2] == 1) {
 	  for (k=ks; k<=ke; k++) {
@@ -501,9 +534,14 @@ int i, is=pGrid->is, ie = pGrid->ie;
 	      for (i=is; i<=ie; i++) {
 		cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
 
-		exp_x=exp(-r2/(delta_x*delta_x));
-		exp_z=exp(-r1/(delta_z*delta_z));
-		exp_xyz=sin(PI*yp*(n1+1)/xxmax)*sin(PI*zp*(n2+1)/yymax)*exp_z;
+		xp=x1-xxmin;
+		yp=x3-yymin;
+		zp=x2;
+
+		r2=(x2-xcz)*(x2-xcz);
+		
+		exp_z=exp(-r2/(delta_z*delta_z));
+		exp_xyz=sin(PI*xp*(n1+1)/xxmax)*exp_z;
 
 		vvz=AA*exp_xyz*tdep;
 
@@ -513,44 +551,53 @@ int i, is=pGrid->is, ie = pGrid->ie;
 
 	    }
 	  }
+        }
+
+	//for 3D model
+	if (pM->Nx[2] > 1)
+	{
+		cc_pos(pGrid,ie,je,ke,&x1,&x2,&x3);
+		xxmax=x1;
+		yymax=x2;
+		cc_pos(pGrid,is,js,ks,&x1,&x2,&x3);
+		xxmax=xxmax-x1;
+		yymax=yymax-x2;
+		xxmin=x1;
+		yymin=x2;
+	}
 
 
 
+	if (pGrid->Nx[2] > 1) {
+	  for (k=ks; k<=ke; k++) {
+	    for (j=js; j<=je; j++) {
+	      for (i=is; i<=ie; i++) {
+		cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
 
-  if (idrive == 0) {  /* driven turbulence */
-    /* Integration has already been done, but time not yet updated */
-    newtime = pGrid->time + pGrid->dt;
+		xp=x1-xxmin;
+		yp=x2-yymin;
+		zp=x3;
 
-#ifndef IMPULSIVE_DRIVING
-    /* Drive on every time step */
-    perturb(pGrid, pGrid->dt);
-#endif /* IMPULSIVE_DRIVING */
+		r2=(x3-xcz)*(x3-xcz);
+		
+		exp_z=exp(-r2/(delta_z*delta_z));
+		exp_xyz=sin(PI*xp*(n1+1)/xxmax)*sin(PI*yp*(n2+1)/yymax)*exp_z;
 
-    if (newtime >= (tdrive+dtdrive)) {
-      /* If we start with large time steps so that tdrive would get way
-       * behind newtime, this makes sure we don't keep generating after
-       * dropping down to smaller time steps */
-      while ((tdrive+dtdrive) <= newtime) tdrive += dtdrive;
+		vvz=AA*exp_xyz*tdep;
 
-#ifdef IMPULSIVE_DRIVING
-      /* Only drive at intervals of dtdrive */
-      perturb(pGrid, dtdrive);
-#endif /* IMPULSIVE_DRIVING */
+		pGrid->U[k][j][i].M3 += (pGrid->dt)*vvz*(pGrid->U[k][j][i].d);
+		pGrid->U[k][j][i].E += (pGrid->dt)*vvz*vvz*(pGrid->U[k][j][i].d)/2.0;
+	      }
 
-      /* Compute new spectrum after dtdrive.  Putting this after perturb()
-       * means we won't be applying perturbations from a new power spectrum
-       * just before writing outputs.  At the very beginning, we'll go a
-       * little longer before regenerating, but the energy injection rate
-       * was off on the very first timestep anyway.  When studying driven
-       * turbulence, all we care about is the saturated state. */
-     // generate();
-    }
-  }
+	    }
+	  }
+      }
+
+	//newtime = pGrid->time + pGrid->dt;
+
+
 
   return;
-
-
-
 
 }
 

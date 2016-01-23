@@ -485,6 +485,22 @@ int i, is=pGrid->is, ie = pGrid->ie;
   int k, ks=pGrid->ks, ke = pGrid->ke;
   Real newtime;
 
+  Real qt,tdep,s_period,AA;
+  Real delta_x, delta_z, xxmax, yymax;
+  Real exp_x,exp_z,exp_xyz;
+  Real r1, r2,yp,zp;
+  Real vvz;
+
+  int n1,n2;
+
+  n1=0;
+  n2=0;
+
+
+  s_period=300.0; //Driver period
+  AA=350.0;       //Driver amplitude
+
+
   if (isnan(pGrid->dt)) ath_error("Time step is NaN!");
 
 
@@ -514,12 +530,6 @@ int i, is=pGrid->is, ie = pGrid->ie;
 	    }
 	  }
 
-
-
-
-
-	w[fencode3_MODID(p,ii,mom1)]=w[fencode3_MODID(p,ii,mom1)]+(pGrid->dt)*vvz*(w[fencode3_MODID(p,ii,rho)]+w[fencode3_MODID(p,ii,rhob)]);
-	w[fencode3_MODID(p,ii,energy)]=w[fencode3_MODID(p,ii,energy)]+(pGrid->dt)*vvz*vvz*(w[fencode3_MODID(p,ii,rho)]+w[fencode3_MODID(p,ii,rhob)])/2.0;
 
 
 
