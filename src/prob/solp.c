@@ -67,8 +67,6 @@ static Real grav_pot2(const Real x1, const Real x2, const Real x3);
 static Real grav_pot3(const Real x1, const Real x2, const Real x3);
 
 
-static void perturb(Grid *pGrid, Real dt);
-
 char name[50];
 
 
@@ -80,140 +78,6 @@ char name[50];
 
 /* ========================================================================== */
 
-/*
- *  Function perturb
- *
- *  Shifts velocities so no net momentum change, normalizes to keep
- *  dedt fixed, and then sets velocities
- */
-
-static void perturb(Grid *pGrid, Real dt)
-{
-  int i, is=pGrid->is, ie = pGrid->ie;
-  int j, js=pGrid->js, je = pGrid->je;
-  int k, ks=pGrid->ks, ke = pGrid->ke;
-  int ind, mpierr;
-  Real dvol, aa, b, c, s, de, qa, v1, v2, v3;
-  Real t0, t0ij, t0i, t1, t1ij, t1i;
-  Real t2, t2ij, t2i, t3, t3ij, t3i;
-  Real m[4], gm[4];
-
-  /* Set the velocities in real space */
-  dvol = 1.0/((Real)(gnx1*gnx2*gnx3));
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie; i++) {
-        ind = OFST(i-is,j-js,k-ks);
-        dv1[k][j][i] = fv1[ind][0]*dvol;
-        dv2[k][j][i] = fv2[ind][0]*dvol;
-        dv3[k][j][i] = fv3[ind][0]*dvol;
-      }
-    }
-  }
-
-  /* Calculate net momentum pertubation components t1, t2, t3 */
-  t0 = 0.0;  t1 = 0.0;  t2 = 0.0;  t3 = 0.0;
-  for (k=ks; k<=ke; k++) {
-    t0ij = 0.0;  t1ij = 0.0;  t2ij = 0.0;  t3ij = 0.0;
-    for (j=js; j<=je; j++) {
-      t0i = 0.0;  t1i = 0.0;  t2i = 0.0;  t3i = 0.0;
-      for (i=is; i<=ie; i++) {
-        t0i += pGrid->U[k][j][i].d;
-
-	/* The net momentum perturbation */
-        t1i += pGrid->U[k][j][i].d * dv1[k][j][i];
-        t2i += pGrid->U[k][j][i].d * dv2[k][j][i];
-        t3i += pGrid->U[k][j][i].d * dv3[k][j][i];
-      }
-      t0ij += t0i;  t1ij += t1i;  t2ij += t2i;  t3ij += t3i;
-    }
-    t0 += t0ij;  t1 += t1ij;  t2 += t2ij;  t3 += t3ij;
-  }
-
-#ifdef MPI_PARALLEL
-  /* Sum the perturbations over all processors */
-  m[0] = t0;  m[1] = t1;  m[2] = t2;  m[3] = t3;
-  mpierr = MPI_Allreduce(m, gm, 4, MPI_RL, MPI_SUM, MPI_COMM_WORLD);
-  if (mpierr) ath_error("[normalize]: MPI_Allreduce error = %d\n", mpierr);
-  t0 = gm[0];  t1 = gm[1];  t2 = gm[2];  t3 = gm[3];
-#endif /* MPI_PARALLEL */
-
-  /* Subtract the mean velocity perturbation so that the net momentum
-   * perturbation is zero. */
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie; i++) {
-        dv1[k][j][i] -= t1/t0;
-        dv2[k][j][i] -= t2/t0;
-        dv3[k][j][i] -= t3/t0;
-      }
-    }
-  }
-
-  /* Calculate unscaled energy of perturbations */
-  t1 = 0.0;  t2 = 0.0;
-  for (k=ks; k<=ke; k++) {
-    t1ij = 0.0;  t2ij = 0.0;
-    for (j=js; j<=je; j++) {
-      t1i = 0.0;  t2i = 0.0;
-      for (i=is; i<=ie; i++) {
-        /* Calculate velocity pertubation at cell center from
-         * perturbations at cell faces */
-	v1 = dv1[k][j][i];
-	v2 = dv2[k][j][i];
-	v3 = dv3[k][j][i];
-
-        t1i += (pGrid->U[k][j][i].d)*(SQR(v1) + SQR(v2) + SQR(v3));
-	t2i +=  (pGrid->U[k][j][i].M1)*v1 + (pGrid->U[k][j][i].M2)*v2 +
-                     (pGrid->U[k][j][i].M3)*v3;
-      }
-      t1ij += t1i;  t2ij += t2i;
-    }
-    t1 += t1ij;  t2 += t2ij;
-  }
-
-#ifdef MPI_PARALLEL
-  /* Sum the perturbations over all processors */
-  m[0] = t1;  m[1] = t2;
-  mpierr = MPI_Allreduce(m, gm, 2, MPI_RL, MPI_SUM, MPI_COMM_WORLD);
-  if (mpierr) ath_error("[normalize]: MPI_Allreduce error = %d\n", mpierr);
-  t1 = gm[0];  t2 = gm[1];
-#endif /* MPI_PARALLEL */
-
-  /* Rescale to give the correct energy injection rate */
-  dvol = pGrid->dx1*pGrid->dx2*pGrid->dx3;
-  if (idrive == 0) {
-    /* driven turbulence */
-    de = dedt*dt;
-  } else {
-    /* decaying turbulence (all in one shot) */
-    de = dedt;
-  }
-  aa = 0.5*t1;
-  aa = MAX(aa,1.0e-20);
-  b = t2;
-  c = -de/dvol;
-  if(b >= 0.0)
-    s = (-2.0*c)/(b + sqrt(b*b - 4.0*aa*c));
-  else
-    s = (-b + sqrt(b*b - 4.0*aa*c))/(2.0*aa);
-
-  if (isnan(s)) ath_error("[perturb]: s is NaN!\n");
-
-  /* Apply momentum pertubations */
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie; i++) {
-        qa = s*pGrid->U[k][j][i].d;
-        pGrid->U[k][j][i].M1 += qa*dv1[k][j][i];
-        pGrid->U[k][j][i].M2 += qa*dv2[k][j][i];
-        pGrid->U[k][j][i].M3 += qa*dv3[k][j][i];
-      }
-    }
-  }
-
-  return;
-}
 
 
 
@@ -490,8 +354,9 @@ int i, is=pGrid->is, ie = pGrid->ie;
   Real exp_x,exp_z,exp_xyz;
   Real r2,xp, yp,zp;
   Real vvz;
+  Real x1,x2,x3;
 
-  Real xc1,xc2,xc3;
+  Real xcz;
 
   int n1,n2;
 
