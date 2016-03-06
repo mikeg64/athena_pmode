@@ -267,9 +267,9 @@ void problem(DomainS *pDomain)
 
   StaticGravPot = grav_pot3;
 
-  //if (pDomain->Disp[2] == 0) bvals_mhd_fun(pDomain, left_x3,  reflect_ix3);
-  //if (pDomain->MaxX[2] == pDomain->RootMaxX[2])
-  //  bvals_mhd_fun(pDomain, right_x3, reflect_ox3);
+  if (pDomain->Disp[2] == 0) bvals_mhd_fun(pDomain, left_x3,  reflect_ix3);
+  if (pDomain->MaxX[2] == pDomain->RootMaxX[2])
+    bvals_mhd_fun(pDomain, right_x3, reflect_ox3);
 
   } /* end of 3D initialization */
 
@@ -667,12 +667,13 @@ static void reflect_ox3(GridS *pGrid)
 
 static Real grav_pot2(const Real x1, const Real x2, const Real x3)
 {
-  return -274*x2;
+  //return 0.1*x2;
+  return 0;
 }
 /*! \fn static Real grav_pot3(const Real x1, const Real x2, const Real x3)
  *  \brief Gravitational potential; g = 0.1
  */
 static Real grav_pot3(const Real x1, const Real x2, const Real x3)
 {
-  return -274*x3;
+  return 0.1*x3;
 }

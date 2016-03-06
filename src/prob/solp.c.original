@@ -1,4 +1,6 @@
 #include "copyright.h"
+
+/*see turb.c and par_collision.c for examples of setting up a problem*/
 /*============================================================================*/
 /*! \file rt.c
  *  \brief Problem generator for RT instabilty.
@@ -57,12 +59,28 @@
  *============================================================================*/
 
 static double ran2(long int *idum);
-static void reflect_ix2(GridS *pGrid);
+/*static void reflect_ix2(GridS *pGrid);
 static void reflect_ox2(GridS *pGrid);
 static void reflect_ix3(GridS *pGrid);
-static void reflect_ox3(GridS *pGrid);
+static void reflect_ox3(GridS *pGrid);*/
 static Real grav_pot2(const Real x1, const Real x2, const Real x3);
 static Real grav_pot3(const Real x1, const Real x2, const Real x3);
+
+
+char name[50];
+
+
+
+
+
+
+
+
+/* ========================================================================== */
+
+
+
+
 
 /*=========================== PUBLIC FUNCTIONS ===============================*/
 /*----------------------------------------------------------------------------*/
@@ -75,6 +93,11 @@ void problem(DomainS *pDomain)
   int is,ie,js,je,ks,ke,iprob;
   long int iseed = -1;
   Real amp,x1,x2,x3,lx,ly,lz,rhoh,L_rot,fact;
+
+  double val3c[132][4],rho,pres,val;
+
+  char st1[100],st2[100],st3[100],st4[100];
+  int ntt;
 #ifdef MHD
   Real b0,angle;
 #endif
@@ -109,34 +132,69 @@ void problem(DomainS *pDomain)
   angle = (angle/180.)*PI;
 #endif
 
+/*read VALIIc data*/
+/*see initialisation_user.h.spicule1_mpi in smaug_pmode/models*/
+    
+    FILE *fid=fopen("../tst/2D-mhd/VALMc_rho_132_test_sac_all.dat","r");
+    printf("%d %d %d %d %d %d\n",is,js,ks,ie,je,ke);
+    for(i=0; i<132; i++)
+               {
+                 //fscanf(fid, " %s %s %s %s %n", st1, st2, st3, st4,&ntt);
+	         fscanf(fid, " %s %s %s %s", st1, st2, st3, st4);
+		 //fscanf(fid, " %g %g %g %g", &val3c[131-i][0], &val3c[131-i][0], &val3c[131-i][0], &val3c[131-i][0]);
+                 //printf("%s %s %s %s\n",st1,st2,st3,st4);
+                 sscanf(st1,"%lf",&val); //height
+                 val3c[131-i][0]=val;
+		 sscanf(st2,"%lf",&val); //temp
+		 val3c[131-i][1]=val;
+		 sscanf(st3,"%lf",&val); //dens
+		 val3c[131-i][2]=val;
+		 sscanf(st4,"%lf",&val); //pres
+		 val3c[131-i][3]=val;
+
+                 
+
+            
+              }
+    fclose(fid);
+
+             for(i=0; i<132; i++)
+                 if((i+js)<=je)
+		{
+		  cc_pos(pGrid,is,i+js,ks,&x1,&x2,&x3);
+                  printf("%f %f %f %f %f\n",x2, val3c[i][0], val3c[i][1], val3c[i][2], val3c[i][3]);
+                //if(p->ipe==1)
+                 }
+
+/*lagrange interpolation*/
+/*   % t1=(xval-x(i+1))/(x(i)-x(i-1));
+     % t2=(xval-x(i))/(x(i+1)-x(i));
+     % y =t1*f(i)+t2*f(i+1); */  
+
+
+
+
+
+/*w[encode3_uin(p,i,j,ii[2],energyb)]=((pres[i][j]-((bsq[i][j])/2))/(gamma-1))+(bsq[i][j]/2);*/
 /* 2D PROBLEM --------------------------------------------------------------- */
 /* Initialize two fluids with interface at y=0.0.  Pressure scaled to give a
  * sound speed of 1 at the interface in the light (lower, d=1) fluid 
  * Perturb V2 using single (iprob=1) or multiple (iprob=2) mode 
  */
 
-  if (pGrid->Nx[2] == 1) {
+if (pGrid->Nx[2] == 1) {
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
       for (i=is; i<=ie; i++) {
         cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
-	pGrid->U[k][j][i].d = 1.0;
-        pGrid->U[k][j][i].E = (1.0/Gamma - 0.1*x2)/Gamma_1;
+        rho=val3c[j-js][2];
+        pres=val3c[j-js][3];
+	pGrid->U[k][j][i].d = rho;
+        pGrid->U[k][j][i].E = (pres)/Gamma_1;
 	pGrid->U[k][j][i].M1 = 0.0;
-        if (iprob == 1) {
-          pGrid->U[k][j][i].M2 = amp/4.0*
-            (1.0+cos(2.0*PI*x1/lx))*(1.0+cos(2.0*PI*x2/ly));
-        }
-        else {
-          pGrid->U[k][j][i].M2 = amp*(ran2(&iseed) - 0.5)*
-            (1.0+cos(2.0*PI*x2/ly));
-	}
+        pGrid->U[k][j][i].M2 = 0.0;
         pGrid->U[k][j][i].M3 = 0.0;
-        if (x2 > 0.0) {
-	  pGrid->U[k][j][i].d = 2.0;
-          pGrid->U[k][j][i].M2 *= 2.0;
-          pGrid->U[k][j][i].E = (1.0/Gamma - 0.2*x2)/Gamma_1;
-	}
+        
 	pGrid->U[k][j][i].E+=0.5*SQR(pGrid->U[k][j][i].M2)/pGrid->U[k][j][i].d;
 #ifdef MHD
 	pGrid->B1i[k][j][i] = b0;
@@ -150,15 +208,19 @@ void problem(DomainS *pDomain)
     }
   }
 
+
+
+
+
 /* Enroll gravitational potential to give acceleration in y-direction for 2D
  * Use special boundary condition routines.  In 2D, gravity is in the
  * y-direction, so special boundary conditions needed for x2
 */
 
   StaticGravPot = grav_pot2;
-  if (pDomain->Disp[1] == 0) bvals_mhd_fun(pDomain, left_x2,  reflect_ix2);
-  if (pDomain->MaxX[1] == pDomain->RootMaxX[1])
-    bvals_mhd_fun(pDomain, right_x2, reflect_ox2);
+  //if (pDomain->Disp[1] == 0) bvals_mhd_fun(pDomain, left_x2,  reflect_ix2);
+  //if (pDomain->MaxX[1] == pDomain->RootMaxX[1])
+  //  bvals_mhd_fun(pDomain, right_x2, reflect_ox2);
 
   } /* end of 2D initialization  */
 
@@ -177,85 +239,26 @@ void problem(DomainS *pDomain)
     for (j=js; j<=je; j++) {
       for (i=is; i<=ie; i++) {
         cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
-	pGrid->U[k][j][i].d = 1.0;
-        pGrid->U[k][j][i].E = (1.0/Gamma - 0.1*x3)/Gamma_1;
+
+        rho=val3c[j-js][2];
+        pres=val3c[j-js][3];
+
+
+	pGrid->U[k][j][i].d = rho;
+        pGrid->U[k][j][i].E = (pres)/Gamma_1;
 	pGrid->U[k][j][i].M1 = 0.0;
 	pGrid->U[k][j][i].M2 = 0.0;
-        if (iprob == 1) {
-          pGrid->U[k][j][i].M3 = amp/8.0*(1.0+cos(2.0*PI*x1/lx))*
-            (1.0+cos(2.0*PI*x2/ly))*(1.0+cos(2.0*PI*x3/lz));
-        }
-        else {
-          pGrid->U[k][j][i].M3 = amp*(ran2(&iseed) - 0.5)*
-            (1.0+cos(2.0*PI*x3/lz));
-	}
-        if (x3 > 0.0) {
-	  pGrid->U[k][j][i].d = rhoh;
-          pGrid->U[k][j][i].M3 *= rhoh;
-          pGrid->U[k][j][i].E = (1.0/Gamma - 0.1*rhoh*x3)/Gamma_1;
-	}
+	pGrid->U[k][j][i].M3 = 0.0;
+        
 	pGrid->U[k][j][i].E+=0.5*SQR(pGrid->U[k][j][i].M3)/pGrid->U[k][j][i].d;
-#ifdef MHD
-        switch(iprob){
-        case 3: /* B only in light fluid, do not add B^2 to E, total P const */
-          if (x3 <= 0.0) {
-            pGrid->B1i[k][j][i] = b0;
-            if (i == ie) pGrid->B1i[k][j][ie+1] = b0;
-            pGrid->U[k][j][i].B1c = b0;
-          }
-          break;
-        case 4: /* discontinuous rotation of B by angle at interface */
-          if (x3 <= 0.0) {
-            pGrid->B1i[k][j][i] = b0;
-            if (i == ie) pGrid->B1i[k][j][ie+1] = b0;
-            pGrid->U[k][j][i].B1c = b0;
-            pGrid->U[k][j][i].E += 0.5*b0*b0;
-          }
-          else {
-            pGrid->B1i[k][j][i] = b0*cos(angle);
-            pGrid->B2i[k][j][i] = b0*sin(angle);
-            if (i == ie) pGrid->B1i[k][j][ie+1] = b0*cos(angle);
-            if (j == je) pGrid->B2i[k][je+1][i] = b0*sin(angle);
-            pGrid->U[k][j][i].B1c = b0*cos(angle);
-            pGrid->U[k][j][i].B2c = b0*sin(angle);
-            pGrid->U[k][j][i].E += 0.5*b0*b0;
-          }
-          break;
-        case 5: /* rotation of B by angle over distance L_rot at interface */
-          if (x3 <= (-L_rot/2.0)) {
-            pGrid->B1i[k][j][i] = b0;
-            if (i == ie) pGrid->B1i[k][j][ie+1] = b0;
-            pGrid->U[k][j][i].B1c = b0;
-            pGrid->U[k][j][i].E += 0.5*b0*b0;
-          }
-          else if (x3 >= (L_rot/2.0)) {
-            pGrid->B1i[k][j][i] = b0*cos(angle);
-            pGrid->B2i[k][j][i] = b0*sin(angle);
-            if (i == ie) pGrid->B1i[k][j][ie+1] = b0*cos(angle);
-            if (j == je) pGrid->B2i[k][je+1][i] = b0*sin(angle);
-            pGrid->U[k][j][i].B1c = b0*cos(angle);
-            pGrid->U[k][j][i].B2c = b0*sin(angle);
-            pGrid->U[k][j][i].E += 0.5*b0*b0;
-          }
-          else {
-            fact = ((L_rot/2.0)+x3)/L_rot;
-            pGrid->B1i[k][j][i] = b0*cos(fact*angle);
-            pGrid->B2i[k][j][i] = b0*sin(fact*angle);
-            if (i == ie) pGrid->B1i[k][j][ie+1] = b0*cos(fact*angle);
-            if (j == je) pGrid->B2i[k][je+1][i] = b0*sin(fact*angle);
-            pGrid->U[k][j][i].B1c = b0*cos(fact*angle);
-            pGrid->U[k][j][i].B2c = b0*sin(fact*angle);
-            pGrid->U[k][j][i].E += 0.5*b0*b0;
-          }
 
-          break;
-        default:
-          pGrid->B1i[k][j][i] = b0;
-          if (i == ie) pGrid->B1i[k][j][ie+1] = b0;
-          pGrid->U[k][j][i].B1c = b0;
-          pGrid->U[k][j][i].E += 0.5*b0*b0;
-        }
+#ifdef MHD
+	pGrid->B1i[k][j][i] = b0;
+	pGrid->U[k][j][i].B1c = b0;
+        pGrid->U[k][j][i].E += 0.5*b0*b0;
 #endif
+
+
       }
     }
   }
@@ -267,9 +270,9 @@ void problem(DomainS *pDomain)
 
   StaticGravPot = grav_pot3;
 
-  //if (pDomain->Disp[2] == 0) bvals_mhd_fun(pDomain, left_x3,  reflect_ix3);
-  //if (pDomain->MaxX[2] == pDomain->RootMaxX[2])
-  //  bvals_mhd_fun(pDomain, right_x3, reflect_ox3);
+ // if (pDomain->Disp[2] == 0) bvals_mhd_fun(pDomain, left_x3,  reflect_ix3);
+ // if (pDomain->MaxX[2] == pDomain->RootMaxX[2])
+ //   bvals_mhd_fun(pDomain, right_x3, reflect_ox3);
 
   } /* end of 3D initialization */
 
@@ -305,8 +308,8 @@ void problem_read_restart(MeshS *pM, FILE *fp)
     StaticGravPot = grav_pot2;
     for (nl=0; nl<(pM->NLevels); nl++){
       for (nd=0; nd<(pM->DomainsPerLevel[nl]); nd++){
-        bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x2,  reflect_ix2);
-        bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x2, reflect_ox2);
+      ;//  bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x2,  reflect_ix2);
+       ;// bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x2, reflect_ox2);
       }
     }
   }
@@ -315,8 +318,8 @@ void problem_read_restart(MeshS *pM, FILE *fp)
     StaticGravPot = grav_pot3;
     for (nl=0; nl<(pM->NLevels); nl++){
       for (nd=0; nd<(pM->DomainsPerLevel[nl]); nd++){
-        bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x3,  reflect_ix3);
-        bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x3, reflect_ox3);
+       ;// bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x3,  reflect_ix3);
+       ;// bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x3, reflect_ox3);
       }
     }
   }
@@ -335,6 +338,157 @@ VOutFun_t get_usr_out_fun(const char *name){
 
 void Userwork_in_loop(MeshS *pM)
 {
+
+
+
+  DomainS *pDomain = (DomainS*)&(pM->Domain[0][0]);
+  GridS *pGrid = pM->Domain[0][0].Grid;
+
+
+int i, is=pGrid->is, ie = pGrid->ie;
+  int j, js=pGrid->js, je = pGrid->je;
+  int k, ks=pGrid->ks, ke = pGrid->ke;
+  Real newtime;
+
+  Real qt,tdep,s_period,AA;
+  Real delta_x, delta_z, xxmax, yymax, xxmin, yymin;
+  Real exp_x,exp_y,exp_z,exp_xyz;
+  Real r1,r2,xp, yp,zp;
+  Real vvz;
+  Real x1,x2,x3;
+
+  Real xcz,xcx;
+
+  int n1,n2;
+
+  n1=0;
+  n2=0;
+
+
+  s_period=30.0; //Driver period
+  AA=350.0;       //Driver amplitude
+  //AA=1;
+  xcz=0.5e6;
+  xcx=2.0e6;
+  delta_z=0.004e6;
+  delta_x=0.016e6;
+
+
+
+
+  if (isnan(pGrid->dt)) ath_error("Time step is NaN!");
+
+
+	qt=pGrid->time;
+
+	tdep=sin(qt*2.0*PI/s_period);
+
+
+
+	if (pM->Nx[2] == 1)
+	{
+		cc_pos(pGrid,ie,je,ke,&x1,&x2,&x3);
+		xxmax=x1;
+		yymax=x3;
+		cc_pos(pGrid,is,js,ks,&x1,&x2,&x3);
+		xxmax=xxmax-x1;
+		yymax=yymax-x3;
+		xxmin=x1;
+		yymin=x3;
+	}
+
+        /*printf("%d %d %d \n",is,js,ks);
+        printf("%d %d %d \n",ie,je,ke);
+        printf("%d %d %d \n", pGrid->Nx[0],pGrid->Nx[1], pGrid->Nx[2]);*/
+	if (pGrid->Nx[2] == 1) {
+	  for (k=ks; k<=ke; k++) {
+	    for (j=js; j<=je; j++) {
+	      for (i=is; i<=ie; i++) {
+		cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
+
+		xp=x1-xxmin;
+		yp=x3-yymin;
+		zp=x2;
+
+		r2=(zp-xcz)*(zp-xcz);
+                r1=(xp-xcx)*(xp-xcx);
+		
+                exp_y=exp(-r1/(delta_x*delta_x));
+		exp_z=exp(-r2/(delta_z*delta_z));
+		exp_xyz=sin(PI*xp*(n1+1)/xxmax)*exp_z;
+		//exp_xyz=exp_y*exp_z;
+
+		vvz=100*AA*exp_xyz*tdep;
+                vvz=0;
+                //if(j==12)
+                //    printf("%d %d %d %f %f %f %f %f %f\n",i,j,k,xp,yp,zp,xcz,exp_y,exp_z);
+
+//if(i>60 && i<68)
+//if(i>is && i<ie)
+//{
+
+                //if(j==12)
+                //    printf("%d %d %d %g %g %g \n",i,j,k,vvz,(pGrid->dt),(pGrid->dt)*vvz*(pGrid->U[k][j][i].d));
+
+
+		pGrid->U[k][j][i].M2 += (pGrid->dt)*vvz*(pGrid->U[k][j][i].d);
+		pGrid->U[k][j][i].E += (pGrid->dt)*vvz*vvz*(pGrid->U[k][j][i].d)/2.0;
+//}
+	      }
+              //printf("\n");
+
+	    }
+	  }
+        }
+
+	//for 3D model
+	if (pM->Nx[2] > 1)
+	{
+		cc_pos(pGrid,ie,je,ke,&x1,&x2,&x3);
+		xxmax=x1;
+		yymax=x2;
+		cc_pos(pGrid,is,js,ks,&x1,&x2,&x3);
+		xxmax=xxmax-x1;
+		yymax=yymax-x2;
+		xxmin=x1;
+		yymin=x2;
+	}
+
+
+
+	if (pGrid->Nx[2] > 1) {
+	  for (k=ks; k<=ke; k++) {
+	    for (j=js; j<=je; j++) {
+	      for (i=is; i<=ie; i++) {
+		cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
+
+		xp=x1-xxmin;
+		yp=x2-yymin;
+		zp=x3;
+
+		r2=(x3-xcz)*(x3-xcz);
+		
+		exp_z=exp(-r2/(delta_z*delta_z));
+		exp_xyz=sin(PI*xp*(n1+1)/xxmax)*sin(PI*yp*(n2+1)/yymax)*exp_z;
+
+		vvz=AA*exp_xyz*tdep;
+                vvz=0;
+
+		pGrid->U[k][j][i].M3 += (pGrid->dt)*vvz*(pGrid->U[k][j][i].d);
+		pGrid->U[k][j][i].E += (pGrid->dt)*vvz*vvz*(pGrid->U[k][j][i].d)/2.0;
+	      }
+
+	    }
+	  }
+      }
+
+	//newtime = pGrid->time + pGrid->dt;
+
+
+
+  return;
+
+
 }
 
 void Userwork_after_loop(MeshS *pM)
@@ -421,6 +575,29 @@ double ran2(long int *idum)
 #undef NTAB
 #undef NDIV
 #undef RNMX
+
+
+/*----------------------------------------------------------------------------*/
+/*! \fn static Real grav_pot2(const Real x1, const Real x2, const Real x3)
+ *  \brief Gravitational potential; g = 0.1
+ */
+
+static Real grav_pot2(const Real x1, const Real x2, const Real x3)
+{
+  //return 287*x2;
+  return 0;
+}
+/*! \fn static Real grav_pot3(const Real x1, const Real x2, const Real x3)
+ *  \brief Gravitational potential; g = 0.1
+ */
+static Real grav_pot3(const Real x1, const Real x2, const Real x3)
+{
+  //return 287*x3;
+  return 0;
+}
+
+
+
 
 /*----------------------------------------------------------------------------*/
 /*! \fn static void reflect_ix2(GridS *pGrid)
@@ -660,19 +837,5 @@ static void reflect_ox3(GridS *pGrid)
   return;
 }
 
-/*----------------------------------------------------------------------------*/
-/*! \fn static Real grav_pot2(const Real x1, const Real x2, const Real x3)
- *  \brief Gravitational potential; g = 0.1
- */
 
-static Real grav_pot2(const Real x1, const Real x2, const Real x3)
-{
-  return -274*x2;
-}
-/*! \fn static Real grav_pot3(const Real x1, const Real x2, const Real x3)
- *  \brief Gravitational potential; g = 0.1
- */
-static Real grav_pot3(const Real x1, const Real x2, const Real x3)
-{
-  return -274*x3;
-}
+

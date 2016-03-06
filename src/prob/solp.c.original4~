@@ -75,6 +75,11 @@ void problem(DomainS *pDomain)
   int is,ie,js,je,ks,ke,iprob;
   long int iseed = -1;
   Real amp,x1,x2,x3,lx,ly,lz,rhoh,L_rot,fact;
+  Real a,v1,fac,w;
+  double val3c[132][4],rho,pres,val;
+  
+  char st1[100],st2[100],st3[100],st4[100];
+  int ntt;
 #ifdef MHD
   Real b0,angle;
 #endif
@@ -109,6 +114,52 @@ void problem(DomainS *pDomain)
   angle = (angle/180.)*PI;
 #endif
 
+
+/*read VALIIc data*/
+/*see initialisation_user.h.spicule1_mpi in smaug_pmode/models*/
+    
+    FILE *fid=fopen("../tst/2D-mhd/VALMc_rho_132_test_sac_all.dat","r");
+    printf("%d %d %d %d %d %d\n",is,js,ks,ie,je,ke);
+    for(i=0; i<132; i++)
+               {
+                 //fscanf(fid, " %s %s %s %s %n", st1, st2, st3, st4,&ntt);
+	         fscanf(fid, " %s %s %s %s", st1, st2, st3, st4);
+		 //fscanf(fid, " %g %g %g %g", &val3c[131-i][0], &val3c[131-i][0], &val3c[131-i][0], &val3c[131-i][0]);
+                 //printf("%s %s %s %s\n",st1,st2,st3,st4);
+                 sscanf(st1,"%lf",&val); //height
+                 val3c[131-i][0]=val;
+		 sscanf(st2,"%lf",&val); //temp
+		 val3c[131-i][1]=val;
+		 sscanf(st3,"%lf",&val); //dens
+		 val3c[131-i][2]=val;
+		 sscanf(st4,"%lf",&val); //pres
+		 val3c[131-i][3]=val;
+
+                 
+
+            
+              }
+    fclose(fid);
+
+             for(i=0; i<132; i++)
+                 if((i+js)<=je)
+		{
+		  cc_pos(pGrid,is,i+js,ks,&x1,&x2,&x3);
+                  printf("%f %f %f %f %f\n",x2, val3c[i][0], val3c[i][1], val3c[i][2], val3c[i][3]);
+                //if(p->ipe==1)
+                 }
+
+/*lagrange interpolation*/
+/*   % t1=(xval-x(i+1))/(x(i)-x(i-1));
+     % t2=(xval-x(i))/(x(i+1)-x(i));
+     % y =t1*f(i)+t2*f(i+1); */  
+
+
+
+
+
+
+
 /* 2D PROBLEM --------------------------------------------------------------- */
 /* Initialize two fluids with interface at y=0.0.  Pressure scaled to give a
  * sound speed of 1 at the interface in the light (lower, d=1) fluid 
@@ -120,24 +171,31 @@ void problem(DomainS *pDomain)
     for (j=js; j<=je; j++) {
       for (i=is; i<=ie; i++) {
         cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
-	pGrid->U[k][j][i].d = 1.0;
-        pGrid->U[k][j][i].E = (1.0/Gamma - 0.1*x2)/Gamma_1;
+        rho=val3c[j-js][2];
+        pres=val3c[j-js][3];
+	pGrid->U[k][j][i].d = rho;
+        pGrid->U[k][j][i].E = (pres)/Gamma_1;
 	pGrid->U[k][j][i].M1 = 0.0;
-        if (iprob == 1) {
-          pGrid->U[k][j][i].M2 = amp/4.0*
-            (1.0+cos(2.0*PI*x1/lx))*(1.0+cos(2.0*PI*x2/ly));
-        }
-        else {
-          pGrid->U[k][j][i].M2 = amp*(ran2(&iseed) - 0.5)*
-            (1.0+cos(2.0*PI*x2/ly));
-	}
+        pGrid->U[k][j][i].M2 = 0.0;
         pGrid->U[k][j][i].M3 = 0.0;
-        if (x2 > 0.0) {
-	  pGrid->U[k][j][i].d = 2.0;
-          pGrid->U[k][j][i].M2 *= 2.0;
-          pGrid->U[k][j][i].E = (1.0/Gamma - 0.2*x2)/Gamma_1;
-	}
+        
 	pGrid->U[k][j][i].E+=0.5*SQR(pGrid->U[k][j][i].M2)/pGrid->U[k][j][i].d;
+
+        a=2.0e6;
+        w=1.0e6;
+        fac=exp(-(x2-a)*(x2-a)/(w*w));
+        v1=(x2<(2.0e6))*fac-(x2>=(2.0e6))*fac;
+        pGrid->U[k][j][i].M1 = 1000*v1*rho;
+
+          pGrid->U[k][j][i].M2 = rho*amp/4.0*
+            (1.0+cos(2.0*PI*x1/lx))*(1.0+cos(2.0*PI*x2/ly));
+
+
+       
+        if(i==63)
+           printf("i j v1=%d %d %f %f %f %f %f\n",i,j,x1,x2,v1,((x2-a)/w)*((x2-a)/w),pGrid->U[k][j][i].M1);
+
+
 #ifdef MHD
 	pGrid->B1i[k][j][i] = b0;
 	pGrid->U[k][j][i].B1c = b0;
@@ -267,9 +325,9 @@ void problem(DomainS *pDomain)
 
   StaticGravPot = grav_pot3;
 
-  //if (pDomain->Disp[2] == 0) bvals_mhd_fun(pDomain, left_x3,  reflect_ix3);
-  //if (pDomain->MaxX[2] == pDomain->RootMaxX[2])
-  //  bvals_mhd_fun(pDomain, right_x3, reflect_ox3);
+  if (pDomain->Disp[2] == 0) bvals_mhd_fun(pDomain, left_x3,  reflect_ix3);
+  if (pDomain->MaxX[2] == pDomain->RootMaxX[2])
+    bvals_mhd_fun(pDomain, right_x3, reflect_ox3);
 
   } /* end of 3D initialization */
 
@@ -667,12 +725,13 @@ static void reflect_ox3(GridS *pGrid)
 
 static Real grav_pot2(const Real x1, const Real x2, const Real x3)
 {
-  return -274*x2;
+  return 287*x2;
+  //return 0;
 }
 /*! \fn static Real grav_pot3(const Real x1, const Real x2, const Real x3)
  *  \brief Gravitational potential; g = 0.1
  */
 static Real grav_pot3(const Real x1, const Real x2, const Real x3)
 {
-  return -274*x3;
+  return 287*x3;
 }
