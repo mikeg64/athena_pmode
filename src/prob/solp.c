@@ -147,13 +147,13 @@ void problem(DomainS *pDomain)
         v1=(x2<(2.0e6))*fac-(x2>=(2.0e6))*fac;
         //pGrid->U[k][j][i].M1 = 1000*v1*rho;
 	pGrid->U[k][j][i].M1 = 0;
-          pGrid->U[k][j][i].M2 = (10000*rho/4.0)*
+          pGrid->U[k][j][i].M2 = (100*rho/4.0)*
             (sin(PI*x1/lx))*(sin(PI*x2/ly));
 	pGrid->U[k][j][i].M2 = 0;
 
        
-        if(i==63)
-           printf("i j v1=%d %d %f %f %f %f %f\n",i,j,x1,x2,lx,ly,(pGrid->U[k][j][i].M2)/rho);
+        //if(i==63)
+        //   printf("i j v1=%d %d %f %f %f %f %f\n",i,j,x1,x2,lx,ly,(pGrid->U[k][j][i].M2)/rho);
 
 
 #ifdef MHD
@@ -239,16 +239,16 @@ int i, is=pGrid->is, ie = pGrid->ie;
 
   int n1,n2;
 
-  n1=0;
-  n2=0;
+  n1=2;
+  n2=2;
 
 
-  s_period=20.0; //Driver period
+  s_period=180.0; //Driver period
   AA=350.0;       //Driver amplitude
   //AA=1;
   xcz=0.5e6;
   xcx=2.0e6;
-  delta_z=0.004e6;
+  delta_z=0.016e6;
   delta_x=0.016e6;
   delta_y=0.016e6;
 
@@ -261,7 +261,7 @@ int i, is=pGrid->is, ie = pGrid->ie;
 	qt=pGrid->time;
 
 	tdep=sin(qt*2.0*PI/s_period);
-
+        //tdep=1.0;
 
 
 	if (pM->Nx[2] == 1)
@@ -296,11 +296,11 @@ int i, is=pGrid->is, ie = pGrid->ie;
 		exp_z=exp(-r2/(delta_z*delta_z));
                 exp_x=exp(-r1/(delta_y*delta_y));
 
-		//exp_xyz=sin(PI*xp*(n1+1)/xxmax)*exp_z;
+		exp_xyz=sin(PI*xp*(n1+1)/xxmax)*exp_z;
 		//exp_xyz=exp_y*exp_z;
-                exp_xyz=exp_x*exp_z;
+                //exp_xyz=exp_x*exp_z;
 
-		vvz=100000000*AA*exp_xyz*tdep;
+		vvz=AA*exp_xyz*tdep;
                 //vvz=0;
                 //if(j==12)
                 //    printf("%d %d %d %f %f %f %f %f %f %f\n",i,j,k,xp,yp,zp,xcz,exp_x,exp_z,vvz);
@@ -309,8 +309,8 @@ int i, is=pGrid->is, ie = pGrid->ie;
 //if(i>is && i<ie)
 //{
 
-                //if(j==12)
-                //    printf("%d %d %d %g %g %g \n",i,j,k,vvz,(pGrid->dt),(pGrid->dt)*vvz*(pGrid->U[k][j][i].d));
+                if(j>8 && j<16 && qt<2)
+                    printf("%d %d %d %g %g %g %g  \n",i,j,k,vvz,exp_x,exp_z,(pGrid->dt)*vvz*(pGrid->U[k][j][i].d));
 
 
 		pGrid->U[k][j][i].M2 += (pGrid->dt)*vvz*(pGrid->U[k][j][i].d);
@@ -354,7 +354,7 @@ int i, is=pGrid->is, ie = pGrid->ie;
 		exp_xyz=sin(PI*xp*(n1+1)/xxmax)*sin(PI*yp*(n2+1)/yymax)*exp_z;
 
 		vvz=AA*exp_xyz*tdep;
-                vvz=0;
+                //vvz=0;
 
 		pGrid->U[k][j][i].M3 += (pGrid->dt)*vvz*(pGrid->U[k][j][i].d);
 		pGrid->U[k][j][i].E += (pGrid->dt)*vvz*vvz*(pGrid->U[k][j][i].d)/2.0;
