@@ -30,3 +30,10 @@ To run the model
 - % cd bin
 - % athena -i ../tst/2D-mhd/athinput.rtmg
 
+
+Additional help
+https://github.com/PrincetonUniversity/athena-public-version/wiki/Running-the-Code
+
+Starting using a restart file
+athena -r example.out1.00010.rst
+
