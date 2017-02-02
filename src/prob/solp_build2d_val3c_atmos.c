@@ -33,7 +33,7 @@ static void ry_bc(GridS *pGrid);
 static Real grav_pot2(const Real x1, const Real x2, const Real x3);
 static Real grav_pot3(const Real x1, const Real x2, const Real x3);
 static int readasciivacconfig(DomainS *pD, char *sacfilename);
-
+static void freadl(FILE *stream, char **string);
 
 
 /*=========================== PUBLIC FUNCTIONS ===============================*/
@@ -50,7 +50,7 @@ void problem(DomainS *pDomain)
   Real a,v1,fac,w;
   double val3c[132][4],rho,pres,val;
   
-  char st1[100],st2[100],st3[100],st4[100],sacfilename[100];;
+  char st1[100],st2[100],st3[100],st4[100],sacfilename[100];
   int ntt;
 
 #ifdef MHD
@@ -65,7 +65,10 @@ void problem(DomainS *pDomain)
   bx0 = par_getd("problem","bx0");
   r0 = par_getd("problem","r0");
   r1 = par_getd("problem","r1");
-  sacfilename = par_gets("problem","sacfilename");
+
+  
+  strcpy(sacfilename,par_gets("problem","sacfilename"));
+  
 
 /* Initialize the grid.  Note the center is always assumed to have coordinates
  * x1=0, x2=0; the grid range in the input file must be consistent with this */
@@ -82,37 +85,12 @@ void problem(DomainS *pDomain)
 if(readasciivacconfig(pDomain, sacfilename)!=0)
      ath_error("[main]: Bad Restart sac filename: %s\n",sacfilename);
 
-/*read VALIIc data*/
-/*see initialisation_user.h.spicule1_mpi in smaug_pmode/models*/
-    
-    FILE *fid=fopen("../tst/2D-mhd/VALMc_rho_132_test_sac_all.dat","r");
-    printf("%d %d %d %d %d %d\n",is,js,ks,ie,je,ke);
-    for(i=0; i<132; i++)
-               {
-                 //fscanf(fid, " %s %s %s %s %n", st1, st2, st3, st4,&ntt);
-	         fscanf(fid, " %s %s %s %s", st1, st2, st3, st4);
-		 //fscanf(fid, " %g %g %g %g", &val3c[131-i][0], &val3c[131-i][0], &val3c[131-i][0], &val3c[131-i][0]);
-                 //printf("%s %s %s %s\n",st1,st2,st3,st4);
-                 sscanf(st1,"%lf",&val); //height
-                 val3c[131-i][0]=val;
-		 sscanf(st2,"%lf",&val); //temp
-		 val3c[131-i][1]=val;
-		 sscanf(st3,"%lf",&val); //dens
-		 val3c[131-i][2]=val;
-		 sscanf(st4,"%lf",&val); //pres
-		 val3c[131-i][3]=val;
-
-                 
-
-            
-              }
-    fclose(fid);
 
              for(i=0; i<132; i++)
                  if((i+js)<=je)
 		{
 		  cc_pos(pGrid,is,i+js,ks,&x1,&x2,&x3);
-                  printf("%f %f %f %f %f\n",x2, val3c[i][0], val3c[i][1], val3c[i][2], val3c[i][3]);
+                 // printf("%f %f %f %f %f\n",x2, val3c[i][0], val3c[i][1], val3c[i][2], val3c[i][3]);
                 //if(p->ipe==1)
                  }
 
@@ -127,54 +105,6 @@ if(readasciivacconfig(pDomain, sacfilename)!=0)
 
 
 
-/* 2D PROBLEM --------------------------------------------------------------- */
-/* Initialize two fluids with interface at y=0.0.  Pressure scaled to give a
- * sound speed of 1 at the interface in the light (lower, d=1) fluid 
- * Perturb V2 using single (iprob=1) or multiple (iprob=2) mode 
- */
-
-  if (pGrid->Nx[2] == 1) {
-  for (k=ks; k<=ke; k++) {
-    for (j=js; j<=je; j++) {
-      for (i=is; i<=ie; i++) {
-        cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
-        rho=val3c[j-js][2];
-        pres=val3c[j-js][3];
-	pGrid->U[k][j][i].d = rho;
-        pGrid->U[k][j][i].E = (pres)/Gamma_1;
-	pGrid->U[k][j][i].M1 = 0.0;
-        pGrid->U[k][j][i].M2 = 0.0;
-        pGrid->U[k][j][i].M3 = 0.0;
-        
-	pGrid->U[k][j][i].E+=0.5*SQR(pGrid->U[k][j][i].M2)/pGrid->U[k][j][i].d;
-
-        a=2.0e6;
-        w=1.0e6;
-        fac=exp(-(x2-a)*(x2-a)/(w*w));
-        v1=(x2<(2.0e6))*fac-(x2>=(2.0e6))*fac;
-        //pGrid->U[k][j][i].M1 = 1000*v1*rho;
-	pGrid->U[k][j][i].M1 = 0;
-          pGrid->U[k][j][i].M2 = (100*rho/4.0)*
-            (sin(PI*x1/lx))*(sin(PI*x2/ly));
-	pGrid->U[k][j][i].M2 = 0;
-
-       
-        //if(i==63)
-        //   printf("i j v1=%d %d %f %f %f %f %f\n",i,j,x1,x2,lx,ly,(pGrid->U[k][j][i].M2)/rho);
-
-
-#ifdef MHD
-	pGrid->B1i[k][j][i] = b0;
-	pGrid->U[k][j][i].B1c = b0;
-        pGrid->U[k][j][i].E += 0.5*b0*b0;
-#endif
-      }
-#ifdef MHD
-    pGrid->B1i[k][j][ie+1] = b0;
-#endif
-    }
-  }
-}
 
 //bvals_mhd_fun(pDomain, right_x2, ry_bc);
 
@@ -259,7 +189,7 @@ int i, is=pGrid->is, ie = pGrid->ie;
   delta_x=0.016e6;
   delta_y=0.016e6;
 
-
+printf("source term1 \n");
 
 
   if (isnan(pGrid->dt)) ath_error("Time step is NaN!");
@@ -273,10 +203,10 @@ int i, is=pGrid->is, ie = pGrid->ie;
 
 	if (pM->Nx[2] == 1)
 	{
-		cc_pos(pGrid,ie,je,ke,&x1,&x2,&x3);
+		fc_pos(pGrid,ie,je,ke,&x1,&x2,&x3);
 		xxmax=x1;
 		yymax=x3;
-		cc_pos(pGrid,is,js,ks,&x1,&x2,&x3);
+		fc_pos(pGrid,is,js,ks,&x1,&x2,&x3);
 		xxmax=xxmax-x1;
 		yymax=yymax-x3;
 		xxmin=x1;
@@ -290,7 +220,7 @@ int i, is=pGrid->is, ie = pGrid->ie;
 	  for (k=ks; k<=ke; k++) {
 	    for (j=js; j<=je; j++) {
 	      for (i=is; i<=ie; i++) {
-		cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
+		fc_pos(pGrid,i,j,k,&x1,&x2,&x3);
 
 		xp=x1-xxmin;
 		yp=x3-yymin;
@@ -316,8 +246,8 @@ int i, is=pGrid->is, ie = pGrid->ie;
 //if(i>is && i<ie)
 //{
 
-                if(j>8 && j<16 && qt<2)
-                    printf("%d %d %d %g %g %g %g  \n",i,j,k,vvz,exp_x,exp_z,(pGrid->dt)*vvz*(pGrid->U[k][j][i].d));
+//                if(j>8 && j<16 && qt<2)
+//                    printf("%d %d %d %g %g %g %g  \n",i,j,k,vvz,exp_x,exp_z,(pGrid->dt)*vvz*(pGrid->U[k][j][i].d));
 
 
 		pGrid->U[k][j][i].M2 += (pGrid->dt)*vvz*(pGrid->U[k][j][i].d);
@@ -333,10 +263,10 @@ int i, is=pGrid->is, ie = pGrid->ie;
 	//for 3D model
 	if (pM->Nx[2] > 1)
 	{
-		cc_pos(pGrid,ie,je,ke,&x1,&x2,&x3);
+		fc_pos(pGrid,ie,je,ke,&x1,&x2,&x3);
 		xxmax=x1;
 		yymax=x2;
-		cc_pos(pGrid,is,js,ks,&x1,&x2,&x3);
+		fc_pos(pGrid,is,js,ks,&x1,&x2,&x3);
 		xxmax=xxmax-x1;
 		yymax=yymax-x2;
 		xxmin=x1;
@@ -349,7 +279,7 @@ int i, is=pGrid->is, ie = pGrid->ie;
 	  for (k=ks; k<=ke; k++) {
 	    for (j=js; j<=je; j++) {
 	      for (i=is; i<=ie; i++) {
-		cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
+		fc_pos(pGrid,i,j,k,&x1,&x2,&x3);
 
 		xp=x1-xxmin;
 		yp=x2-yymin;
@@ -470,11 +400,44 @@ static void ry_bc(GridS *pGrid)
 }
 
 
+static void freadl(FILE *stream, char **string)
+{    
+    unsigned long counter = 0;
+    char *line = NULL;
+    int next = fgetc(stream);
+
+    do {
+        next = fgetc(stream);
+        if (next == EOF) {
+            free(line);
+            break;
+        }
+        ++counter;
+        line = (char*)realloc(line, counter + 1);
+        if (line == NULL) {
+            puts("line == NULL");
+            exit(EXIT_FAILURE);
+        }
+        line[counter - 1] = (char)next;
+    } while (next != '\n');
+    line[counter - 1] = '\0';
+    *string = (char *)malloc(strlen(line) + 1);
+    if (*string == NULL) {
+        puts("*string == NULL");
+    } else {
+        strcpy(*string, line);
+    }
+    free(line);
+
+}
+
+
+
 static int readasciivacconfig(DomainS *pD, char *sacfilename)
 {
-	int status=0;
+  int status=0;
 
-  int i;
+  int i,j,k;
   int i1,j1,k1;
   int tn1,tn2,tn3;
   int ni,nj,nk;
@@ -482,11 +445,14 @@ static int readasciivacconfig(DomainS *pD, char *sacfilename)
   int is,js,ks;
   int ie,je,ke;
   int shift;
-  real x,y,z,val;
-  real t;
+  Real x,y,z,val;
+  Real t;
+  Real x1,x2,x3;
   int it;
   int Nx3T, Nx2T, Nx1T;
-  real *w, *wd;
+  Real *w, *wd;
+
+  char **hlines;
 
    int ii1,ii2,ii3;
    int pos1, pos2;
@@ -494,8 +460,8 @@ static int readasciivacconfig(DomainS *pD, char *sacfilename)
    pos1=0;
    pos2=1;
 
-   ni=p.n[0];
-   nj=p.n[1];
+   //ni=p.n[0];
+   //nj=p.n[1];
    is=0;
    js=0;
    ks=0;
@@ -503,11 +469,10 @@ static int readasciivacconfig(DomainS *pD, char *sacfilename)
    iif=ni;
    jf=nj;
 
-
-   #ifdef USE_SAC_3D
-   nk=p.n[2];
-   kf=nk;
-   #endif
+  // #ifdef USE_SAC_3D
+  // nk=p.n[2];
+  // kf=nk;
+  // #endif
 
    GridS *pGrid = pD->Grid;
    is = pGrid->is;  ie = pGrid->ie;
@@ -516,7 +481,7 @@ static int readasciivacconfig(DomainS *pD, char *sacfilename)
 
 
 
-
+ // cc_pos(pGrid,is,i+js,ks,&x1,&x2,&x3);
 
 
     
@@ -534,7 +499,6 @@ freadl(fdt, &hlines[0]);
 
 fscanf(fdt,"%d %lG %d %d %d\n",&(it),&(t),&ii1,&ii2,&ii3);
 
-
   /* Calculate physical size of grid */
 
 
@@ -548,13 +512,23 @@ fscanf(fdt,"%d %lG %d %d %d\n",&(it),&(t),&ii1,&ii2,&ii3);
   else
     Nx1T = 1;
 
- w=(Real *)calloc(ii3*Nx1T*Nx2T,sizeof(Real));
+ni=Nx1T;
+nj=Nx2T;
+//nk=;
+
+//   #define NVAR 10
+   //#define NDERV 19
+//   #define NDERV 19
+
+ w=(Real *)calloc(10*Nx1T*Nx2T,sizeof(Real));
  wd=(Real *)calloc(2*Nx1T*Nx2T,sizeof(Real));
 
 
 
 
 fscanf(fdt,"%d %d %d\n",&tn1,&tn2,&tn3);
+
+//printf("here %d %d %d %d %d\n",tn1,tn2,tn3, Nx1T, Nx2T);
 
 
    //read 5 header lines
@@ -572,13 +546,15 @@ for( j1=js;j1<(je);j1++)
 for( i1=is;i1<(ie);i1++)
              {
 
-                         shift=(j1*ni+i1);
-                         fscanf(fdt,"%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf\n",&wd[shift+(ni*nj*pos1)],&wd[shift+(ni*nj*pos2)],&w[shift],&w[shift+(ni*nj)],&w[shift+(ni*nj*2)],&w[shift+(ni*nj*3)],&w[shift+(ni*nj*4)],&w[shift+(ni*nj*5)],&w[shift+(ni*nj*6)],&w[shift+(ni*nj*7)],&w[shift+(ni*nj*8)],&w[shift+(ni*nj*9)]);
+                         shift=((j1-js)*ni+(i1-is));
+                         fscanf(fdt,"%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf\n",&wd[shift],&wd[shift+(ni*nj)],&w[shift],&w[shift+(ni*nj)],&w[shift+(ni*nj*2)],&w[shift+(ni*nj*3)],&w[shift+(ni*nj*4)],&w[shift+(ni*nj*5)],&w[shift+(ni*nj*6)],&w[shift+(ni*nj*7)],&w[shift+(ni*nj*8)],&w[shift+(ni*nj*9)]);
 
 for(k=ks; k<=ke; k++)
 {
 #ifdef MHD
-
+pGrid->B1i[k][j][i] =w[shift+(ni*nj*4)]+w[shift+(ni*nj*8)];
+pGrid->B2i[k][j][i] =w[shift+(ni*nj*5)]+w[shift+(ni*nj*9)];
+pGrid->B3i[k][j][i] =0.0;
 #endif
 
         //add background contributions from sac input file
@@ -597,5 +573,8 @@ for(k=ks; k<=ke; k++)
 
         free(w);
         free(wd);
+
+//printf("here end:%d %d %d %d\n",is,js,ie,je);
+
 	return status;
 }
