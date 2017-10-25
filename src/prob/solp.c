@@ -200,7 +200,7 @@ if (pGrid->Nx[2] == 1) {
  * z-direction, so special boundary conditions needed for x3
  */
 
-  StaticGravPot = grav_pot3;
+ // StaticGravPot = grav_pot3;
 
  // if (pDomain->Disp[2] == 0) bvals_mhd_fun(pDomain, left_x3,  reflect_ix3);
  // if (pDomain->MaxX[2] == pDomain->RootMaxX[2])
@@ -243,6 +243,11 @@ void problem_write_restart(MeshS *pM, FILE *fp)
 void problem_read_restart(MeshS *pM, FILE *fp)
 {
   int nl,nd;
+
+  
+
+
+
 
   if (pM->Nx[2] == 1) {
     StaticGravPot = grav_pot2;
@@ -307,13 +312,15 @@ int i, is=pGrid->is, ie = pGrid->ie;
 
   s_period=30.0; //Driver period
   AA=350.0;       //Driver amplitude
+  //AA=0.0;
   //AA=1;
   xcz=0.5e6;
   xcx=2.0e6;
   //delta_z=0.004e6;
-  delta_z=0.016e6;
-  delta_x=0.016e6;
-
+  //delta_z=0.016e6;
+  //delta_x=0.016e6;
+delta_z=0.08e6;
+  delta_x=0.08e6;
 
 
 
@@ -349,8 +356,8 @@ int i, is=pGrid->is, ie = pGrid->ie;
 	      for (i=is; i<=ie; i++) {
 		cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
 
-		zp=x1-xxmin;
-		xp=x2-yymin;
+		xp=x1-xxmin;
+		zp=x2-yymin;
 		yp=x3;
 
 		r2=(zp-xcz)*(zp-xcz);
@@ -361,10 +368,10 @@ int i, is=pGrid->is, ie = pGrid->ie;
 		//exp_xyz=sin(PI*xp*(n1+1)/xxmax)*exp_z;
 		exp_xyz=exp_y*exp_z;
 
-		vvz=100*AA*exp_xyz*tdep;
+		vvz=AA*exp_xyz*tdep;
                 //vvz=0;
-                //if(j==12)
-                //    printf("%d %d %d %f %f %f %f %f %f\n",i,j,k,xp,yp,zp,xcz,exp_y,exp_z);
+                //if(j==14)
+                //    printf("%d %d %d %f %f %f %f %f %f %f %f\n",i,j,k,xp-xcx,zp-xcz,tdep,xcz,xcx,exp_y,exp_z,delta_x, delta_z);
 
 //if(i>60 && i<68)
 //if(i>is && i<ie)
@@ -520,6 +527,16 @@ double ran2(long int *idum)
 #undef NDIV
 #undef RNMX
 
+/*----------------------------------------------------------------------------*/
+/*! \fn static Real grav_pot1(const Real x1, const Real x2, const Real x3)
+ *  \brief Gravitational potential; g = 0.1
+ */
+
+static Real grav_pot1(const Real x1, const Real x2, const Real x3)
+{
+  //return 287*x2;
+  return 0;
+}
 
 /*----------------------------------------------------------------------------*/
 /*! \fn static Real grav_pot2(const Real x1, const Real x2, const Real x3)
@@ -917,6 +934,7 @@ nj=Nx2T;
 fscanf(fdt,"%d %d %d\n",&tn1,&tn2,&tn3);
 
 //printf("here %d %d %d %d %d\n",tn1,tn2,tn3, Nx1T, Nx2T);
+//printf("here in config %d %d %d %d %d %d\n", is,js,ks,ie,je,ke);
 
 
    //read 5 header lines
@@ -926,22 +944,36 @@ fscanf(fdt,"%d %d %d\n",&tn1,&tn2,&tn3);
      printf("%s\n", hlines[i]);
    }
 //printf("read ascii header %d %d %d %d\n" , p.ipe, is,iif, js,jf);
-printf("read ascii header %d %d %d %d \n" , is,iif, js,jf);
+printf("read ascii header %d %d %d %d %d %d\n" , is,iif, js,jf,ni,nj);
   //fscanf(fdt,"%f",&val);
  //printf("%f",val);
 
 //for( j1=js;j1<(je);j1++)
 //for( i1=is;i1<(ie);i1++)
-for( j1=js;j1<(je);j1++)
+
+//for(k=ks; k<=ke; k++)
 for( i1=is;i1<(ie);i1++)
+for( j1=js;j1<(je);j1++)
+//for( i1=is;i1<(ie);i1++)
              {
 
-			shift=((j1)*ni+(i1));                         
+			//shift=((j1)*ni+(i1));                         
 			//shift=((j1-js)*ni+(i1-is));
-                         fscanf(fdt,"%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf\n",&wd[shift],&wd[shift+(ni*nj)],&w[shift],&w[shift+(ni*nj)],&w[shift+(ni*nj*2)],&w[shift+(ni*nj*3)],&w[shift+(ni*nj*4)],&w[shift+(ni*nj*5)],&w[shift+(ni*nj*6)],&w[shift+(ni*nj*7)],&w[shift+(ni*nj*8)],&w[shift+(ni*nj*9)]);
-
-for(k=ks; k<=ke; k++)
+                        // fscanf(fdt,"%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf\n",&wd[shift],&wd[shift+(ni*nj)],&w[shift],&w[shift+(ni*nj)],&w[shift+(ni*nj*2)],&w[shift+(ni*nj*3)],&w[shift+(ni*nj*4)],&w[shift+(ni*nj*5)],&w[shift+(ni*nj*6)],&w[shift+(ni*nj*7)],&w[shift+(ni*nj*8)],&w[shift+(ni*nj*9)]);
+//for( i1=is;i1<(ie);i1++)
+//for(k=ks; k<=ke; k++)
 {
+
+//shift=((j1)*ni+(i1));
+shift=((i1)*nj+(j1));
+
+ fscanf(fdt,"%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf\n",&wd[shift],&wd[shift+(ni*nj)],&w[shift],&w[shift+(ni*nj)],&w[shift+(ni*nj*2)],&w[shift+(ni*nj*3)],&w[shift+(ni*nj*4)],&w[shift+(ni*nj*5)],&w[shift+(ni*nj*6)],&w[shift+(ni*nj*7)],&w[shift+(ni*nj*8)],&w[shift+(ni*nj*9)]);
+
+
+//if(i1==0)
+//   printf("here in config1 %d %d  %d %g %g\n", i1,j1,shift,w[shift+(ni*nj*8)],w[shift+(ni*nj*9)]);
+
+
 #ifdef MHD
 //pGrid->B1i[k][j][i] =w[shift+(ni*nj*4)]+w[shift+(ni*nj*8)];
 //pGrid->B2i[k][j][i] =w[shift+(ni*nj*5)]+w[shift+(ni*nj*9)];
