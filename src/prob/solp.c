@@ -70,6 +70,7 @@ static double ran2(long int *idum);
 static void reflect_ox2(GridS *pGrid);
 static void reflect_ix3(GridS *pGrid);
 static void reflect_ox3(GridS *pGrid);*/
+
 static Real grav_pot2(const Real x1, const Real x2, const Real x3);
 static Real grav_pot3(const Real x1, const Real x2, const Real x3);
 static int readasciivacconfig(DomainS *pD, char *sacfilename);
@@ -156,8 +157,9 @@ if (pGrid->Nx[2] == 1) {
     for (j=js; j<=je; j++) {
       for (i=is; i<=ie; i++) {
         cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
-        rho=0.0001;
-        pres=100;
+        rho=1.0e-12;
+        pres=0;
+        b0=0;
 	pGrid->U[k][j][i].d = rho;
         pGrid->U[k][j][i].E = (pres)/Gamma_1;
 	pGrid->U[k][j][i].M1 = 0.0;
@@ -293,6 +295,7 @@ void Userwork_in_loop(MeshS *pM)
 int i, is=pGrid->is, ie = pGrid->ie;
   int j, js=pGrid->js, je = pGrid->je;
   int k, ks=pGrid->ks, ke = pGrid->ke;
+  int jea,jsa;
   Real newtime;
 
   Real qt,tdep,s_period,AA;
@@ -310,7 +313,7 @@ int i, is=pGrid->is, ie = pGrid->ie;
   n2=0;
 
 
-  s_period=30.0; //Driver period
+  s_period=180.0; //Driver period
   AA=350.0;       //Driver amplitude
   //AA=0.0;
   //AA=1;
@@ -345,10 +348,10 @@ delta_z=0.08e6;
 		yymin=x1;
 	}
 
-        /*printf("positional info\n");
-        printf("%d %d %d \n",is,js,ks);
-        printf("%d %d %d \n",ie,je,ke);
-        printf("%d %d %d \n", pGrid->Nx[0],pGrid->Nx[1], pGrid->Nx[2]);
+        //printf("positional info\n");
+        //printf("%d %d %d \n",is,js,ks);
+        //printf("%d %d %d \n",ie,je,ke);
+        /*printf("%d %d %d \n", pGrid->Nx[0],pGrid->Nx[1], pGrid->Nx[2]);
         printf("%g %g %g %g\n",xxmin,xxmax,yymin,yymax);*/
 	if (pGrid->Nx[2] == 1) {
 	  for (k=ks; k<=ke; k++) {
@@ -368,7 +371,10 @@ delta_z=0.08e6;
 		//exp_xyz=sin(PI*xp*(n1+1)/xxmax)*exp_z;
 		exp_xyz=exp_y*exp_z;
 
-		vvz=AA*exp_xyz*tdep;
+                vvz=0.0;
+
+                //if(qt>20)
+		   vvz=AA*exp_xyz*tdep;
                 //vvz=0;
                 //if(j==14)
                 //    printf("%d %d %d %f %f %f %f %f %f %f %f\n",i,j,k,xp-xcx,zp-xcz,tdep,xcz,xcx,exp_y,exp_z,delta_x, delta_z);
@@ -433,6 +439,51 @@ delta_z=0.08e6;
 	  }
       }
 
+
+	  for (k=0; k<pGrid->Nx[2]; k++) {
+	    for (j=js; j<=je; j++) {
+	      for (i=0; i<pGrid->Nx[0]; i++) {
+
+                jea=pGrid->Nx[1];
+                jsa=0;
+                //pGrid->U[k][jsa+3][i].M2
+                pGrid->U[k][jsa+6][i].M2 = pGrid->U[k][jsa+7][i].M2;
+                pGrid->U[k][jsa+5][i].M2 = pGrid->U[k][jsa+6][i].M2;
+		pGrid->U[k][jsa+4][i].M2 = pGrid->U[k][jsa+5][i].M2;
+                pGrid->U[k][jsa+3][i].M2=pGrid->U[k][jsa+4][i].M2;
+		pGrid->U[k][jsa+2][i].M2 = pGrid->U[k][jsa+3][i].M2;
+		pGrid->U[k][jsa+1][i].M2 = pGrid->U[k][jsa+2][i].M2;
+		pGrid->U[k][jsa][i].M2 = pGrid->U[k][jsa+1][i].M2;
+
+                //pGrid->U[k][jea-5][i].M2 = pGrid->U[k][jea-6][i].M2;
+
+                pGrid->U[k][jea-6][i].M2 = pGrid->U[k][jea-7][i].M2;
+
+                pGrid->U[k][jea-5][i].M2 = pGrid->U[k][jea-6][i].M2;
+		pGrid->U[k][jea-4][i].M2 = pGrid->U[k][jea-5][i].M2;
+                
+		pGrid->U[k][jea-3][i].M2 = pGrid->U[k][jea-4][i].M2;
+		pGrid->U[k][jea-2][i].M2 = pGrid->U[k][jea-3][i].M2;
+		pGrid->U[k][jea-1][i].M2 = pGrid->U[k][jea-2][i].M2;
+		pGrid->U[k][jea][i].M2 = pGrid->U[k][jea-1][i].M2;
+}
+}
+}
+
+
+
+	  //for (k=ks; k<=ke; k++) {
+	    for (j=0; j<pM->Nx[1]; j++) {
+	      //for (i=is; i<=ie; i++) {
+                 
+                 k=ke;
+                 printf("%d %d %g %g %g\n", j,k, pGrid->U[k][j][6].M2/pGrid->U[k][j][6].d, pGrid->U[k][j][60].M2/pGrid->U[k][j][60].d,pGrid->U[k][j][120].M2/pGrid->U[k][j][120].d);
+//printf("%d %d %g %g %g\n", i,k, pGrid->U[k][j][6].d, pGrid->U[k][j][60].d,pGrid->U[k][j][110].d);
+
+		//	}
+		//}
+	}
+
 	//newtime = pGrid->time + pGrid->dt;
 
 
@@ -446,86 +497,6 @@ void Userwork_after_loop(MeshS *pM)
 {
 }
 
-/*=========================== PRIVATE FUNCTIONS ==============================*/
-
-/*----------------------------------------------------------------------------*/
-
-#define IM1 2147483563
-#define IM2 2147483399
-#define AM (1.0/IM1)
-#define IMM1 (IM1-1)
-#define IA1 40014
-#define IA2 40692
-#define IQ1 53668
-#define IQ2 52774
-#define IR1 12211
-#define IR2 3791
-#define NTAB 32
-#define NDIV (1+IMM1/NTAB)
-#define RNMX (1.0-DBL_EPSILON)
-
-/*! \fn double ran2(long int *idum)
- *  \brief  Extracted from the Numerical Recipes in C (version 2) code.  
- *   Modified to use doubles instead of floats. - T. A. Gardiner - Aug. 12, 2003
- *   
- *
- * Long period (> 2 x 10^{18}) random number generator of L'Ecuyer
- * with Bays-Durham shuffle and added safeguards.  Returns a uniform
- * random deviate between 0.0 and 1.0 (exclusive of the endpoint
- * values).  Call with idum = a negative integer to initialize;
- * thereafter, do not alter idum between successive deviates in a
- * sequence.  RNMX should appriximate the largest floating point value
- * that is less than 1. 
- */
-
-double ran2(long int *idum)
-{
-  int j;
-  long int k;
-  static long int idum2=123456789;
-  static long int iy=0;
-  static long int iv[NTAB];
-  double temp;
-
-  if (*idum <= 0) { /* Initialize */
-    if (-(*idum) < 1) *idum=1; /* Be sure to prevent idum = 0 */
-    else *idum = -(*idum);
-    idum2=(*idum);
-    for (j=NTAB+7;j>=0;j--) { /* Load the shuffle table (after 8 warm-ups) */
-      k=(*idum)/IQ1;
-      *idum=IA1*(*idum-k*IQ1)-k*IR1;
-      if (*idum < 0) *idum += IM1;
-      if (j < NTAB) iv[j] = *idum;
-    }
-    iy=iv[0];
-  }
-  k=(*idum)/IQ1;                 /* Start here when not initializing */
-  *idum=IA1*(*idum-k*IQ1)-k*IR1; /* Compute idum=(IA1*idum) % IM1 without */
-  if (*idum < 0) *idum += IM1;   /* overflows by Schrage's method */
-  k=idum2/IQ2;
-  idum2=IA2*(idum2-k*IQ2)-k*IR2; /* Compute idum2=(IA2*idum) % IM2 likewise */
-  if (idum2 < 0) idum2 += IM2;
-  j=(int)(iy/NDIV);              /* Will be in the range 0...NTAB-1 */
-  iy=iv[j]-idum2;                /* Here idum is shuffled, idum and idum2 */
-  iv[j] = *idum;                 /* are combined to generate output */
-  if (iy < 1) iy += IMM1;
-  if ((temp=AM*iy) > RNMX) return RNMX; /* No endpoint values */
-  else return temp;
-}
-
-#undef IM1
-#undef IM2
-#undef AM
-#undef IMM1
-#undef IA1
-#undef IA2
-#undef IQ1
-#undef IQ2
-#undef IR1
-#undef IR2
-#undef NTAB
-#undef NDIV
-#undef RNMX
 
 /*----------------------------------------------------------------------------*/
 /*! \fn static Real grav_pot1(const Real x1, const Real x2, const Real x3)
@@ -545,8 +516,17 @@ static Real grav_pot1(const Real x1, const Real x2, const Real x3)
 
 static Real grav_pot2(const Real x1, const Real x2, const Real x3)
 {
-  //return 287*x2;
-  return 0;
+  //return 28.7*x2;
+  // 1  return 259*x2;  -0.1
+  // 2 return 256*x2;  0.054
+  // 3 return 257*x2;   0.01
+  // 4 return 257.5*x2; -0.03
+  // 5 return 257.2*x2;
+  //6  return 257.15*x2; -0.18 after10
+  //7 return 257.05*x2;  -76t -107b 0.02
+  //8 return 257.1*x2;  76t -107b
+   return 257.045*x2;
+  //return 0;
 }
 /*! \fn static Real grav_pot3(const Real x1, const Real x2, const Real x3)
  *  \brief Gravitational potential; g = 0.1
@@ -557,246 +537,6 @@ static Real grav_pot3(const Real x1, const Real x2, const Real x3)
   return 0;
 }
 
-
-
-
-/*----------------------------------------------------------------------------*/
-/*! \fn static void reflect_ix2(GridS *pGrid)
- *  \brief Special reflecting boundary functions in x2 for 2D sims
- */
-
-static void reflect_ix2(GridS *pGrid)
-{
-  int js = pGrid->js;
-  int ks = pGrid->ks, ke = pGrid->ke;
-  int i,j,k,il,iu,ku; /* i-lower/upper;  k-upper */
-
-  iu = pGrid->ie + nghost;
-  il = pGrid->is - nghost;
-
-  for (k=ks; k<=ke; k++) {
-    for (j=1; j<=nghost; j++) {
-      for (i=il; i<=iu; i++) {
-        pGrid->U[k][js-j][i]    =  pGrid->U[k][js+(j-1)][i];
-        pGrid->U[k][js-j][i].M2 = -pGrid->U[k][js-j][i].M2; /* reflect 2-mom. */
-        pGrid->U[k][js-j][i].E +=  
-	  pGrid->U[k][js+(j-1)][i].d*0.1*(2*j-1)*pGrid->dx2/Gamma_1;
-      }
-    }
-  }
-
-#ifdef MHD
-  for (k=ks; k<=ke; k++) {
-    for (j=1; j<=nghost; j++) {
-      for (i=il; i<=iu; i++) {
-        pGrid->B1i[k][js-j][i] = pGrid->B1i[k][js+(j-1)][i];
-      }
-    }
-  }
-
-  for (k=ks; k<=ke; k++) {
-    for (j=1; j<=nghost; j++) {
-      for (i=il; i<=iu; i++) {
-        pGrid->B2i[k][js-j][i] = pGrid->B2i[k][js+(j-1)][i];
-      }
-    }
-  }
-
-  if (pGrid->Nx[2] > 1) ku=ke+1; else ku=ke;
-  for (k=ks; k<=ku; k++) {
-    for (j=1; j<=nghost; j++) {
-      for (i=il; i<=iu; i++) {
-        pGrid->B3i[k][js-j][i] = pGrid->B3i[k][js+(j-1)][i];
-      }
-    }
-  }
-#endif
-
-  return;
-}
-
-/*----------------------------------------------------------------------------*/
-/*! \fn static void reflect_ox2(GridS *pGrid)
- *  \brief Special reflecting boundary functions in x2 for 2D sims
- */
-
-static void reflect_ox2(GridS *pGrid)
-{
-  int je = pGrid->je;
-  int ks = pGrid->ks, ke = pGrid->ke, ku;
-  int i,j,k,il,iu,jl,ju; /* i/j-lower/upper */
-
-  iu = pGrid->ie + nghost;
-  il = pGrid->is - nghost;
-
-  if (pGrid->Nx[1] > 1){
-    ju = pGrid->je + nghost;
-    jl = pGrid->js - nghost;
-  } else {
-    ju = pGrid->je;
-    jl = pGrid->js;
-  }
-
-  for (k=ks; k<=ke; k++) {
-    for (j=1; j<=nghost; j++) {
-      for (i=il; i<=iu; i++) {
-        pGrid->U[k][je+j][i]    =  pGrid->U[k][je-(j-1)][i];
-        pGrid->U[k][je+j][i].M2 = -pGrid->U[k][je+j][i].M2; /* reflect 2-mom. */
-        pGrid->U[k][je+j][i].E -=
-          pGrid->U[k][je-(j-1)][i].d*0.1*(2*j-1)*pGrid->dx2/Gamma_1;
-      }
-    }
-  }
-
-#ifdef MHD
-  for (k=ks; k<=ke; k++) {
-    for (j=1; j<=nghost; j++) {
-      for (i=il; i<=iu; i++) {
-        pGrid->B1i[k][je+j][i] = pGrid->B1i[k][je-(j-1)][i];
-      }
-    }
-  }
-
-/* j=je+1 is not set for the interface field B2i */
-  for (k=ks; k<=ke; k++) {
-    for (j=2; j<=nghost; j++) {
-      for (i=il; i<=iu; i++) {
-        pGrid->B2i[k][je+j][i] = pGrid->B2i[k][je-(j-2)][i];
-      }
-    }
-  }
-
-  if (pGrid->Nx[2] > 1) ku=ke+1; else ku=ke;
-  for (k=ks; k<=ku; k++) {
-    for (j=1; j<=nghost; j++) {
-      for (i=il; i<=iu; i++) {
-        pGrid->B3i[k][je+j][i] = pGrid->B3i[k][je-(j-1)][i];
-      }
-    }
-  }
-#endif
-
-  return;
-}
-
-/*----------------------------------------------------------------------------*/
-/*! \fn static void reflect_ix3(GridS *pGrid)
- *  \brief Special reflecting boundary functions in x3 for 2D sims
- */
-
-static void reflect_ix3(GridS *pGrid)
-{
-  int ks = pGrid->ks;
-  int i,j,k,il,iu,jl,ju; /* i-lower/upper;  j-lower/upper */
-
-  iu = pGrid->ie + nghost;
-  il = pGrid->is - nghost;
-  if (pGrid->Nx[1] > 1){
-    ju = pGrid->je + nghost;
-    jl = pGrid->js - nghost;
-  } else {
-    ju = pGrid->je;
-    jl = pGrid->js;
-  }
-
-  for (k=1; k<=nghost; k++) {
-    for (j=jl; j<=ju; j++) {
-      for (i=il; i<=iu; i++) {
-        pGrid->U[ks-k][j][i]    =  pGrid->U[ks+(k-1)][j][i];
-        pGrid->U[ks-k][j][i].M3 = -pGrid->U[ks-k][j][i].M3; /* reflect 3-mom. */
-        pGrid->U[ks-k][j][i].E +=
-          pGrid->U[ks+(k-1)][j][i].d*0.1*(2*k-1)*pGrid->dx3/Gamma_1;
-      }
-    }
-  }
-
-#ifdef MHD
-  for (k=1; k<=nghost; k++) {
-    for (j=jl; j<=ju; j++) {
-      for (i=il; i<=iu; i++) {
-        pGrid->B1i[ks-k][j][i] = pGrid->B1i[ks+(k-1)][j][i];
-      }
-    }
-  }
-  for (k=1; k<=nghost; k++) {
-    for (j=jl; j<=ju; j++) {
-      for (i=il; i<=iu; i++) {
-        pGrid->B2i[ks-k][j][i] = pGrid->B2i[ks+(k-1)][j][i];
-      }
-    }
-  }
-
-  for (k=1; k<=nghost; k++) {
-    for (j=jl; j<=ju; j++) {
-      for (i=il; i<=iu; i++) {
-        pGrid->B3i[ks-k][j][i] = pGrid->B3i[ks+(k-1)][j][i];
-      }
-    }
-  }
-#endif
-
-  return;
-}
-
-/*----------------------------------------------------------------------------*/
-/*! \fn static void reflect_ox3(GridS *pGrid)
- *  \brief Special reflecting boundary functions in x3 for 3D sims
- */
-
-static void reflect_ox3(GridS *pGrid)
-{
-  int ke = pGrid->ke;
-  int i,j,k ,il,iu,jl,ju; /* i-lower/upper;  j-lower/upper */
-
-  iu = pGrid->ie + nghost;
-  il = pGrid->is - nghost;
-  if (pGrid->Nx[1] > 1){
-    ju = pGrid->je + nghost;
-    jl = pGrid->js - nghost;
-  } else {
-    ju = pGrid->je;
-    jl = pGrid->js;
-  }
-  for (k=1; k<=nghost; k++) {
-    for (j=jl; j<=ju; j++) {
-      for (i=il; i<=iu; i++) {
-        pGrid->U[ke+k][j][i]    =  pGrid->U[ke-(k-1)][j][i];
-        pGrid->U[ke+k][j][i].M3 = -pGrid->U[ke+k][j][i].M3; /* reflect 3-mom. */
-        pGrid->U[ke+k][j][i].E -=
-          pGrid->U[ke-(k-1)][j][i].d*0.1*(2*k-1)*pGrid->dx3/Gamma_1;
-      }
-    }
-  }
-
-#ifdef MHD
-  for (k=1; k<=nghost; k++) {
-    for (j=jl; j<=ju; j++) {
-      for (i=il; i<=iu; i++) {
-        pGrid->B1i[ke+k][j][i] = pGrid->B1i[ke-(k-1)][j][i];
-      }
-    }
-  }
-
-  for (k=1; k<=nghost; k++) {
-    for (j=jl; j<=ju; j++) {
-      for (i=il; i<=iu; i++) {
-        pGrid->B2i[ke+k][j][i] = pGrid->B2i[ke-(k-1)][j][i];
-      }
-    }
-  }
-
-/* Note that k=ke+1 is not a boundary condition for the interface field B3i */
-  for (k=2; k<=nghost; k++) {
-    for (j=jl; j<=ju; j++) {
-      for (i=il; i<=iu; i++) {
-        pGrid->B3i[ke+k][j][i] = pGrid->B3i[ke-(k-1)][j][i];
-      }
-    }
-  }
-#endif
-
-  return;
-}
 
 
 static void freadl(FILE *stream, char **string)
@@ -865,8 +605,8 @@ static int readasciivacconfig(DomainS *pD, char *sacfilename)
    js=0;
    ks=0;
 
-   iif=ni;
-   jf=nj;
+   //iif=ni;
+   //jf=nj;
 
   // #ifdef USE_SAC_3D
   // nk=p.n[2];
@@ -926,15 +666,17 @@ nj=Nx2T;
 
  w=(Real *)calloc(10*Nx1T*Nx2T,sizeof(Real));
  wd=(Real *)calloc(2*Nx1T*Nx2T,sizeof(Real));
-
+//w=(Real *)calloc(10*ie*je,sizeof(Real));
+// wd=(Real *)calloc(2*ie*je,sizeof(Real));
 
   // typedef enum vars {rho, mom1, mom2, energy, b1, b2,energyb,rhob,b1b,b2b} CEV;
   // typedef enum vars {rho, mom1, mom2, mom3, energy, b1, b2, b3,energyb,rhob,b1b,b2b,b3b} CEV;
 
 fscanf(fdt,"%d %d %d\n",&tn1,&tn2,&tn3);
+k=0;
 
 //printf("here %d %d %d %d %d\n",tn1,tn2,tn3, Nx1T, Nx2T);
-//printf("here in config %d %d %d %d %d %d\n", is,js,ks,ie,je,ke);
+printf("here in config %d %d %d %d %d %d %d\n", k,is,js,ks,ie,je,ke);
 
 
    //read 5 header lines
@@ -944,7 +686,7 @@ fscanf(fdt,"%d %d %d\n",&tn1,&tn2,&tn3);
      printf("%s\n", hlines[i]);
    }
 //printf("read ascii header %d %d %d %d\n" , p.ipe, is,iif, js,jf);
-printf("read ascii header %d %d %d %d %d %d\n" , is,iif, js,jf,ni,nj);
+printf("read ascii header %d %d %d %d %d\n" , nghost, ni,nj,is, js);
   //fscanf(fdt,"%f",&val);
  //printf("%f",val);
 
@@ -952,8 +694,8 @@ printf("read ascii header %d %d %d %d %d %d\n" , is,iif, js,jf,ni,nj);
 //for( i1=is;i1<(ie);i1++)
 
 //for(k=ks; k<=ke; k++)
-for( i1=is;i1<(ie);i1++)
-for( j1=js;j1<(je);j1++)
+for( i1=is;i1<(ni);i1++)
+for( j1=js;j1<(nj);j1++)
 //for( i1=is;i1<(ie);i1++)
              {
 
@@ -1004,6 +746,59 @@ pGrid->B3i[k][j][i] =0.0;
 
               }
 
+//top boundary
+/*for( i1=is;i1<(ie);i1++)
+{
+	pGrid->B1i[k][j][i] =;
+	pGrid->B2i[k][j][i] =;
+	pGrid->B3i[k][j][i] =;
+
+	pGrid->U[k][j][i].d = ;
+        pGrid->U[k][j][i].E = ;
+
+	pGrid->U[k][j][i].M1 = ;
+        pGrid->U[k][j][i].M2 = ;
+        pGrid->U[k][j][i].M3 = ;
+
+}*/
+
+
+//bottom boundary
+/*for( i1=is;i1<(ie);i1++)
+{
+	pGrid->B1i[k][j][i] =;
+	pGrid->B2i[k][j][i] =;
+	pGrid->B3i[k][j][i] =;
+
+	pGrid->U[k][j][i].d = ;
+        pGrid->U[k][j][i].E = ;
+
+	pGrid->U[k][j][i].M1 = ;
+        pGrid->U[k][j][i].M2 = ;
+        pGrid->U[k][j][i].M3 = ;
+}*/
+
+
+//left boundary
+/*for( j=js;j<(je);j++)
+{
+	pGrid->B1i[k][j][i] =;
+	pGrid->B2i[k][j][i] =;
+	pGrid->B3i[k][j][i] =;
+
+	pGrid->U[k][j][i].d = ;
+        pGrid->U[k][j][i].E = ;
+
+	pGrid->U[k][j][i].M1 = ;
+        pGrid->U[k][j][i].M2 = ;
+        pGrid->U[k][j][i].M3 = ;
+}*/
+
+
+
+//right boundary
+
+
 
 	      fclose(fdt);
 
@@ -1015,4 +810,7 @@ pGrid->B3i[k][j][i] =0.0;
 
 	return status;
 }
+
+
+
 
