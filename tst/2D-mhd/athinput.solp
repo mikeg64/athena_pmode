@@ -19,10 +19,14 @@ dt      = 2
 
 
 <output3>
-out_fmt = rst
+out_fmt = bin
 dt      = 2.0
 
 <output4>
+out_fmt = rst
+dt      = 2.0
+
+<output5>
 out_fmt = ppm
 dt      = 2
 out     = V2
