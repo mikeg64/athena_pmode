@@ -35,10 +35,10 @@
  *
  * PRIVATE FUNCTION PROTOTYPES:
  * - ran2() - random number generator from NR
- * - reflect_ix2() - sets BCs on L-x2 (left edge) of grid used in 2D
- * - reflect_ox2() - sets BCs on R-x2 (right edge) of grid used in 2D
- * - reflect_ix3() - sets BCs on L-x3 (left edge) of grid used in 3D
- * - reflect_ox3() - sets BCs on R-x3 (right edge) of grid used in 3D
+ * - outflow_ix2() - sets BCs on L-x2 (left edge) of grid used in 2D
+ * - outflow_ox2() - sets BCs on R-x2 (right edge) of grid used in 2D
+ * - outflow_ix3() - sets BCs on L-x3 (left edge) of grid used in 3D
+ * - outflow_ox3() - sets BCs on R-x3 (right edge) of grid used in 3D
  * - grav_pot2() - gravitational potential for 2D problem (accn in Y)
  * - grav_pot3() - gravitational potential for 3D problem (accn in Z)
  *
@@ -57,19 +57,21 @@
 /*==============================================================================
  * PRIVATE FUNCTION PROTOTYPES:
  * ran2() - random number generator from NR
- * reflect_ix2() - sets BCs on L-x2 (left edge) of grid used in 2D
- * reflect_ox2() - sets BCs on R-x2 (right edge) of grid used in 2D
- * reflect_ix3() - sets BCs on L-x3 (left edge) of grid used in 3D
- * reflect_ox3() - sets BCs on R-x3 (right edge) of grid used in 3D
+ * outflow_ix2() - sets BCs on L-x2 (left edge) of grid used in 2D
+ * outflow_ox2() - sets BCs on R-x2 (right edge) of grid used in 2D
+ * outflow_ix3() - sets BCs on L-x3 (left edge) of grid used in 3D
+ * outflow_ox3() - sets BCs on R-x3 (right edge) of grid used in 3D
  * grav_pot2() - gravitational potential for 2D problem (accn in Y)
  * grav_pot3() - gravitational potential for 3D problem (accn in Z)
  *============================================================================*/
 
 static double ran2(long int *idum);
-/*static void reflect_ix2(GridS *pGrid);
-static void reflect_ox2(GridS *pGrid);
-static void reflect_ix3(GridS *pGrid);
-static void reflect_ox3(GridS *pGrid);*/
+static void outflow_ix1(GridS *pGrid);
+static void outflow_ox1(GridS *pGrid);
+static void outflow_ix2(GridS *pGrid);
+static void outflow_ox2(GridS *pGrid);
+static void outflow_ix3(GridS *pGrid);
+static void outflow_ox3(GridS *pGrid);
 
 static Real grav_pot2(const Real x1, const Real x2, const Real x3);
 static Real grav_pot3(const Real x1, const Real x2, const Real x3);
@@ -189,9 +191,14 @@ if (pGrid->Nx[2] == 1) {
 */
 
   StaticGravPot = grav_pot2;
-  //if (pDomain->Disp[1] == 0) bvals_mhd_fun(pDomain, left_x2,  reflect_ix2);
+  bvals_mhd_fun(pDomain, left_x2,  outflow_ix2);
+  bvals_mhd_fun(pDomain, right_x2, outflow_ox2);
+  bvals_mhd_fun(pDomain, left_x1,  outflow_ix1);
+  bvals_mhd_fun(pDomain, right_x1, outflow_ox1);
+
+  //if (pDomain->Disp[1] == 0) bvals_mhd_fun(pDomain, left_x2,  outflow_ix2);
   //if (pDomain->MaxX[1] == pDomain->RootMaxX[1])
-  //  bvals_mhd_fun(pDomain, right_x2, reflect_ox2);
+  //  bvals_mhd_fun(pDomain, right_x2, outflow_ox2);
 
   } /* end of 2D initialization  */
 
@@ -204,9 +211,12 @@ if (pGrid->Nx[2] == 1) {
 
  // StaticGravPot = grav_pot3;
 
- // if (pDomain->Disp[2] == 0) bvals_mhd_fun(pDomain, left_x3,  reflect_ix3);
+ // if (pDomain->Disp[2] == 0) bvals_mhd_fun(pDomain, left_x3,  outflow_ix3);
  // if (pDomain->MaxX[2] == pDomain->RootMaxX[2])
- //   bvals_mhd_fun(pDomain, right_x3, reflect_ox3);
+ //   bvals_mhd_fun(pDomain, right_x3, outflow_ox3);
+bvals_mhd_fun(pDomain, left_x3,  outflow_ix3);
+bvals_mhd_fun(pDomain, right_x3, outflow_ox3);
+
 
   } /* end of 3D initialization */
 
@@ -255,8 +265,8 @@ void problem_read_restart(MeshS *pM, FILE *fp)
     StaticGravPot = grav_pot2;
     for (nl=0; nl<(pM->NLevels); nl++){
       for (nd=0; nd<(pM->DomainsPerLevel[nl]); nd++){
-      ;//  bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x2,  reflect_ix2);
-       ;// bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x2, reflect_ox2);
+      ;//  bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x2,  outflow_ix2);
+       ;// bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x2, outflow_ox2);
       }
     }
   }
@@ -265,8 +275,8 @@ void problem_read_restart(MeshS *pM, FILE *fp)
     StaticGravPot = grav_pot3;
     for (nl=0; nl<(pM->NLevels); nl++){
       for (nd=0; nd<(pM->DomainsPerLevel[nl]); nd++){
-       ;// bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x3,  reflect_ix3);
-       ;// bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x3, reflect_ox3);
+       ;// bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x3,  outflow_ix3);
+       ;// bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x3, outflow_ox3);
       }
     }
   }
@@ -295,7 +305,7 @@ void Userwork_in_loop(MeshS *pM)
 int i, is=pGrid->is, ie = pGrid->ie;
   int j, js=pGrid->js, je = pGrid->je;
   int k, ks=pGrid->ks, ke = pGrid->ke;
-  int jea,jsa;
+  int jea,jsa,iea,isa;
   Real newtime;
 
   Real qt,tdep,s_period,AA;
@@ -313,7 +323,7 @@ int i, is=pGrid->is, ie = pGrid->ie;
   n2=0;
 
 
-  s_period=180.0; //Driver period
+  s_period=30.0; //Driver period
   AA=350.0;       //Driver amplitude
   //AA=0.0;
   //AA=1;
@@ -375,6 +385,7 @@ delta_z=0.08e6;
 
                 //if(qt>20)
 		   vvz=AA*exp_xyz*tdep;
+
                 //vvz=0;
                 //if(j==14)
                 //    printf("%d %d %d %f %f %f %f %f %f %f %f\n",i,j,k,xp-xcx,zp-xcz,tdep,xcz,xcx,exp_y,exp_z,delta_x, delta_z);
@@ -440,14 +451,39 @@ delta_z=0.08e6;
       }
 
 
-	  for (k=0; k<pGrid->Nx[2]; k++) {
-	    for (j=js; j<=je; j++) {
-	      for (i=0; i<pGrid->Nx[0]; i++) {
+	 // for (k=0; k<pGrid->Nx[2]; k++) {
+	    //for (j=js; j<=je; j++) {
+	   //   for (i=0; i<pGrid->Nx[0]; i++) {
 
-                jea=pGrid->Nx[1];
-                jsa=0;
+             //   jea=pGrid->Nx[1];
+              //  jsa=0;
+
+               /*pGrid->U[k][jsa+5][i] = pGrid->U[k][jsa+6][i];
+		pGrid->U[k][jsa+4][i] = pGrid->U[k][jsa+5][i];
+                pGrid->U[k][jsa+3][i]=pGrid->U[k][jsa+4][i];
+		pGrid->U[k][jsa+2][i] = pGrid->U[k][jsa+3][i];
+		pGrid->U[k][jsa+1][i] = pGrid->U[k][jsa+2][i];
+		pGrid->U[k][jsa][i] = pGrid->U[k][jsa+1][i];
+
+                //pGrid->U[k][jea-5][i] = pGrid->U[k][jea-6][i];
+
+                pGrid->U[k][jea-6][i] = pGrid->U[k][jea-7][i];
+
+                pGrid->U[k][jea-5][i] = pGrid->U[k][jea-6][i];
+		pGrid->U[k][jea-4][i] = pGrid->U[k][jea-5][i];
+                
+		pGrid->U[k][jea-3][i] = pGrid->U[k][jea-4][i];
+		pGrid->U[k][jea-2][i] = pGrid->U[k][jea-3][i];
+		pGrid->U[k][jea-1][i] = pGrid->U[k][jea-2][i];
+		pGrid->U[k][jea][i] = pGrid->U[k][jea-1][i];*/
+
+
+
+
+
+
                 //pGrid->U[k][jsa+3][i].M2
-                pGrid->U[k][jsa+6][i].M2 = pGrid->U[k][jsa+7][i].M2;
+                /*pGrid->U[k][jsa+6][i].M2 = pGrid->U[k][jsa+7][i].M2;
                 pGrid->U[k][jsa+5][i].M2 = pGrid->U[k][jsa+6][i].M2;
 		pGrid->U[k][jsa+4][i].M2 = pGrid->U[k][jsa+5][i].M2;
                 pGrid->U[k][jsa+3][i].M2=pGrid->U[k][jsa+4][i].M2;
@@ -465,24 +501,143 @@ delta_z=0.08e6;
 		pGrid->U[k][jea-3][i].M2 = pGrid->U[k][jea-4][i].M2;
 		pGrid->U[k][jea-2][i].M2 = pGrid->U[k][jea-3][i].M2;
 		pGrid->U[k][jea-1][i].M2 = pGrid->U[k][jea-2][i].M2;
-		pGrid->U[k][jea][i].M2 = pGrid->U[k][jea-1][i].M2;
-}
-}
-}
+		pGrid->U[k][jea][i].M2 = pGrid->U[k][jea-1][i].M2;*/
+
+
+
+
+                /*pGrid->U[k][jsa+6][i].M1 = pGrid->U[k][jsa+7][i].M1;
+                pGrid->U[k][jsa+5][i].M1 = pGrid->U[k][jsa+6][i].M1;
+		pGrid->U[k][jsa+4][i].M1 = pGrid->U[k][jsa+5][i].M1;
+                pGrid->U[k][jsa+3][i].M1=pGrid->U[k][jsa+4][i].M1;
+		pGrid->U[k][jsa+2][i].M1 = pGrid->U[k][jsa+3][i].M1;
+		pGrid->U[k][jsa+1][i].M1 = pGrid->U[k][jsa+2][i].M1;
+		pGrid->U[k][jsa][i].M1 = pGrid->U[k][jsa+1][i].M1;
+
+                //pGrid->U[k][jea-5][i].M1 = pGrid->U[k][jea-6][i].M1;
+
+                pGrid->U[k][jea-6][i].M1 = pGrid->U[k][jea-7][i].M1;
+
+                pGrid->U[k][jea-5][i].M1 = pGrid->U[k][jea-6][i].M1;
+		pGrid->U[k][jea-4][i].M1 = pGrid->U[k][jea-5][i].M1;
+                
+		pGrid->U[k][jea-3][i].M1 = pGrid->U[k][jea-4][i].M1;
+		pGrid->U[k][jea-2][i].M1 = pGrid->U[k][jea-3][i].M1;
+		pGrid->U[k][jea-1][i].M1 = pGrid->U[k][jea-2][i].M1;
+		pGrid->U[k][jea][i].M1 = pGrid->U[k][jea-1][i].M1;*/
+
+
+
+
+//}
+//}
+//}
+
+
+	  //for (k=0; k<pGrid->Nx[2]; k++) {
+	   // for (j=0; j<=pGrid->Nx[1]; j++) {
+	      //for (i=0; i<pGrid->Nx[0]; i++) {
+
+               // iea=pGrid->Nx[0];
+               // isa=0;
+
+
+		/*pGrid->U[k][j][isa+6] = pGrid->U[k][j][isa+7];
+                pGrid->U[k][j][isa+5] = pGrid->U[k][j][isa+6];
+		pGrid->U[k][j][isa+4] = pGrid->U[k][j][isa+5];
+                pGrid->U[k][j][isa+3]=pGrid->U[k][j][isa+4];
+		pGrid->U[k][j][isa+2] = pGrid->U[k][j][isa+3];
+		pGrid->U[k][j][isa+1] = pGrid->U[k][j][isa+2];
+		pGrid->U[k][j][isa] = pGrid->U[k][j][isa+1];
+
+                //pGrid->U[k][jea-5] = pGrid->U[k][j][iea-6];
+
+                pGrid->U[k][j][iea-6] = pGrid->U[k][j][iea-7];
+
+                pGrid->U[k][j][iea-5] = pGrid->U[k][j][iea-6];
+		pGrid->U[k][j][iea-4] = pGrid->U[k][j][iea-5];
+                
+		pGrid->U[k][j][iea-3] = pGrid->U[k][j][iea-4];
+		pGrid->U[k][j][iea-2] = pGrid->U[k][j][iea-3];
+		pGrid->U[k][j][iea-1] = pGrid->U[k][j][iea-2];
+		pGrid->U[k][j][iea] = pGrid->U[k][j][iea-1];*/
+
+
+
+
+
+
+
+                //pGrid->U[k][j][isa+3].M2
+                /*pGrid->U[k][j][isa+6].M2 = pGrid->U[k][j][isa+7].M2;
+                pGrid->U[k][j][isa+5].M2 = pGrid->U[k][j][isa+6].M2;
+		pGrid->U[k][j][isa+4].M2 = pGrid->U[k][j][isa+5].M2;
+                pGrid->U[k][j][isa+3].M2=pGrid->U[k][j][isa+4].M2;
+		pGrid->U[k][j][isa+2].M2 = pGrid->U[k][j][isa+3].M2;
+		pGrid->U[k][j][isa+1].M2 = pGrid->U[k][j][isa+2].M2;
+		pGrid->U[k][j][isa].M2 = pGrid->U[k][j][isa+1].M2;
+
+                //pGrid->U[k][jea-5].M2 = pGrid->U[k][j][iea-6].M2;
+
+                pGrid->U[k][j][iea-6].M2 = pGrid->U[k][j][iea-7].M2;
+
+                pGrid->U[k][j][iea-5].M2 = pGrid->U[k][j][iea-6].M2;
+		pGrid->U[k][j][iea-4].M2 = pGrid->U[k][j][iea-5].M2;
+                
+		pGrid->U[k][j][iea-3].M2 = pGrid->U[k][j][iea-4].M2;
+		pGrid->U[k][j][iea-2].M2 = pGrid->U[k][j][iea-3].M2;
+		pGrid->U[k][j][iea-1].M2 = pGrid->U[k][j][iea-2].M2;
+		pGrid->U[k][j][iea].M2 = pGrid->U[k][j][iea-1].M2;*/
+
+
+                /*pGrid->U[k][j][isa+6].M1 = pGrid->U[k][j][isa+7].M1;
+                pGrid->U[k][j][isa+5].M1 = pGrid->U[k][j][isa+6].M1;
+		pGrid->U[k][j][isa+4].M1 = pGrid->U[k][j][isa+5].M1;
+                pGrid->U[k][j][isa+3].M1=pGrid->U[k][j][isa+4].M1;
+		pGrid->U[k][j][isa+2].M1 = pGrid->U[k][j][isa+3].M1;
+		pGrid->U[k][j][isa+1].M1 = pGrid->U[k][j][isa+2].M1;
+		pGrid->U[k][j][isa].M1 = pGrid->U[k][j][isa+1].M1;
+
+                //pGrid->U[k][jea-5].M1 = pGrid->U[k][j][iea-6].M1;
+
+                pGrid->U[k][j][iea-6].M1 = pGrid->U[k][j][iea-7].M1;
+
+                pGrid->U[k][j][iea-5].M1 = pGrid->U[k][j][iea-6].M1;
+		pGrid->U[k][j][iea-4].M1 = pGrid->U[k][j][iea-5].M1;
+                
+		pGrid->U[k][j][iea-3].M1 = pGrid->U[k][j][iea-4].M1;
+		pGrid->U[k][j][iea-2].M1 = pGrid->U[k][j][iea-3].M1;
+		pGrid->U[k][j][iea-1].M1 = pGrid->U[k][j][iea-2].M1;
+		pGrid->U[k][j][iea].M1 = pGrid->U[k][j][iea-1].M1;*/
+
+
+
+
+
+//}
+//}
+//}
+
+
+
+
+
+
+
 
 
 
 	  //for (k=ks; k<=ke; k++) {
-	    for (j=0; j<pM->Nx[1]; j++) {
+	   // for (j=0; j<pM->Nx[1]; j++) {
 	      //for (i=is; i<=ie; i++) {
                  
-                 k=ke;
-                 printf("%d %d %g %g %g\n", j,k, pGrid->U[k][j][6].M2/pGrid->U[k][j][6].d, pGrid->U[k][j][60].M2/pGrid->U[k][j][60].d,pGrid->U[k][j][120].M2/pGrid->U[k][j][120].d);
+               //  k=ke;
+               //  printf("%d %d %g %g %g\n", j,k, pGrid->U[k][j][6].M2/pGrid->U[k][j][6].d, pGrid->U[k][j][60].M2/pGrid->U[k][j][60].d,pGrid->U[k][j][120].M2/pGrid->U[k][j][120].d);
 //printf("%d %d %g %g %g\n", i,k, pGrid->U[k][j][6].d, pGrid->U[k][j][60].d,pGrid->U[k][j][110].d);
 
 		//	}
 		//}
-	}
+	//}
 
 	//newtime = pGrid->time + pGrid->dt;
 
@@ -810,6 +965,76 @@ pGrid->B3i[k][j][i] =0.0;
 
 	return status;
 }
+
+/*----------------------------------------------------------------------------*/
+/*! \fn static void outflow_ix1(GridS *pGrid)
+ *  \brief Special reflecting boundary functions in x2 for 2D sims
+ */
+
+static void outflow_ix1(GridS *pGrid)
+{
+ 
+  return;
+}
+
+/*----------------------------------------------------------------------------*/
+/*! \fn static void outflow_ox1(GridS *pGrid)
+ *  \brief Special reflecting boundary functions in x2 for 2D sims
+ */
+
+static void outflow_ox1(GridS *pGrid)
+{
+
+  return;
+}
+
+
+
+
+/*----------------------------------------------------------------------------*/
+/*! \fn static void outflow_ix2(GridS *pGrid)
+ *  \brief Special reflecting boundary functions in x2 for 2D sims
+ */
+
+static void outflow_ix2(GridS *pGrid)
+{
+ 
+  return;
+}
+
+/*----------------------------------------------------------------------------*/
+/*! \fn static void outflow_ox2(GridS *pGrid)
+ *  \brief Special reflecting boundary functions in x2 for 2D sims
+ */
+
+static void outflow_ox2(GridS *pGrid)
+{
+
+  return;
+}
+
+/*----------------------------------------------------------------------------*/
+/*! \fn static void outflow_ix3(GridS *pGrid)
+ *  \brief Special reflecting boundary functions in x3 for 2D sims
+ */
+
+static void outflow_ix3(GridS *pGrid)
+{
+
+  return;
+}
+
+/*----------------------------------------------------------------------------*/
+/*! \fn static void outflow_ox3(GridS *pGrid)
+ *  \brief Special reflecting boundary functions in x3 for 3D sims
+ */
+
+static void outflow_ox3(GridS *pGrid)
+{
+ 
+  return;
+}
+
 
 
 
