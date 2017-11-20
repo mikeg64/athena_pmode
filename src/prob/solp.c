@@ -32,6 +32,9 @@
  * Gravity acts in the z-direction.  Special reflecting boundary conditions
  *   added in x3 to improve hydrostatic eqm (prevents launching of weak waves)
  * Atwood number A = (d2-d1)/(d2+d1) = 1/2
+ * Enable with MPI
+ * config  = --with-problem=solp --with-order=3 --with-flux=hlld --enable-mpi
+ * config  = --with-problem=solp --with-order=3 --with-flux=hlld
  *
  * PRIVATE FUNCTION PROTOTYPES:
  * - ran2() - random number generator from NR
@@ -76,6 +79,7 @@ static void outflow_ox3(GridS *pGrid);
 static Real grav_pot2(const Real x1, const Real x2, const Real x3);
 static Real grav_pot3(const Real x1, const Real x2, const Real x3);
 static int readasciivacconfig(DomainS *pD, char *sacfilename);
+static int readasciivacconfig3d(DomainS *pD, char *sacfilename);
 static void freadl(FILE *stream, char **string);
 
 char name[50];
@@ -147,14 +151,7 @@ void problem(DomainS *pDomain)
   strcpy(sacfilename,par_gets("problem","sacfilename"));
 
 
-/*w[encode3_uin(p,i,j,ii[2],energyb)]=((pres[i][j]-((bsq[i][j])/2))/(gamma-1))+(bsq[i][j]/2);*/
-/* 2D PROBLEM --------------------------------------------------------------- */
-/* Initialize two fluids with interface at y=0.0.  Pressure scaled to give a
- * sound speed of 1 at the interface in the light (lower, d=1) fluid 
- * Perturb V2 using single (iprob=1) or multiple (iprob=2) mode 
- */
 
-if (pGrid->Nx[2] == 1) {
   for (k=ks; k<=ke; k++) {
     for (j=js; j<=je; j++) {
       for (i=is; i<=ie; i++) {
@@ -179,6 +176,23 @@ if (pGrid->Nx[2] == 1) {
     pGrid->B1i[k][j][ie+1] = b0;
 #endif
     }
+}
+
+
+
+
+
+
+
+/*w[encode3_uin(p,i,j,ii[2],energyb)]=((pres[i][j]-((bsq[i][j])/2))/(gamma-1))+(bsq[i][j]/2);*/
+/* 2D PROBLEM --------------------------------------------------------------- */
+/* Initialize two fluids with interface at y=0.0.  Pressure scaled to give a
+ * sound speed of 1 at the interface in the light (lower, d=1) fluid 
+ * Perturb V2 using single (iprob=1) or multiple (iprob=2) mode 
+ */
+
+if (pGrid->Nx[2] == 1) {
+
   
 
 
@@ -199,30 +213,39 @@ if (pGrid->Nx[2] == 1) {
   //if (pDomain->Disp[1] == 0) bvals_mhd_fun(pDomain, left_x2,  outflow_ix2);
   //if (pDomain->MaxX[1] == pDomain->RootMaxX[1])
   //  bvals_mhd_fun(pDomain, right_x2, outflow_ox2);
-
+if(readasciivacconfig(pDomain, sacfilename)!=0)
+     ath_error("[main]: Bad Restart sac filename: %s\n",sacfilename);
   } /* end of 2D initialization  */
 
-
+if (pGrid->Nx[2] > 1)
+{ 
 
 /* Enroll gravitational potential to give accn in z-direction for 3D
  * Use special boundary condition routines.  In 3D, gravity is in the
  * z-direction, so special boundary conditions needed for x3
  */
 
- // StaticGravPot = grav_pot3;
+  StaticGravPot = grav_pot3;
 
  // if (pDomain->Disp[2] == 0) bvals_mhd_fun(pDomain, left_x3,  outflow_ix3);
  // if (pDomain->MaxX[2] == pDomain->RootMaxX[2])
  //   bvals_mhd_fun(pDomain, right_x3, outflow_ox3);
+  bvals_mhd_fun(pDomain, left_x2,  outflow_ix2);
+  bvals_mhd_fun(pDomain, right_x2, outflow_ox2);
+  bvals_mhd_fun(pDomain, left_x1,  outflow_ix1);
+  bvals_mhd_fun(pDomain, right_x1, outflow_ox1);
+
+
+
 bvals_mhd_fun(pDomain, left_x3,  outflow_ix3);
 bvals_mhd_fun(pDomain, right_x3, outflow_ox3);
 
-
+if(readasciivacconfig3d(pDomain, sacfilename)!=0)
+     ath_error("[main]: Bad Restart sac filename: %s\n",sacfilename);
   } /* end of 3D initialization */
 
 
-if(readasciivacconfig(pDomain, sacfilename)!=0)
-     ath_error("[main]: Bad Restart sac filename: %s\n",sacfilename);
+
 
 
 
@@ -305,17 +328,17 @@ void Userwork_in_loop(MeshS *pM)
 int i, is=pGrid->is, ie = pGrid->ie;
   int j, js=pGrid->js, je = pGrid->je;
   int k, ks=pGrid->ks, ke = pGrid->ke;
-  int jea,jsa,iea,isa;
+  int jea,jsa,iea,isa,kea,ksa;
   Real newtime;
 
   Real qt,tdep,s_period,AA;
-  Real delta_x, delta_z, xxmax, yymax, xxmin, yymin;
+  Real delta_x,delta_y, delta_z, xxmax, yymax,zzmax, xxmin, yymin,zzmin;
   Real exp_x,exp_y,exp_z,exp_xyz;
-  Real r1,r2,xp, yp,zp;
+  Real r1,r2,r3,xp, yp,zp;
   Real vvz;
   Real x1,x2,x3;
 
-  Real xcz,xcx;
+  Real xcz,xcx,xcy;
 
   int n1,n2;
 
@@ -329,11 +352,13 @@ int i, is=pGrid->is, ie = pGrid->ie;
   //AA=1;
   xcz=0.5e6;
   xcx=2.0e6;
+  xcy=2.0e6;
   //delta_z=0.004e6;
   //delta_z=0.016e6;
   //delta_x=0.016e6;
-delta_z=0.08e6;
+  delta_z=0.08e6;
   delta_x=0.08e6;
+  delta_y=0.08e6;
 
 
 
@@ -371,7 +396,7 @@ delta_z=0.08e6;
 
 		xp=x1-xxmin;
 		zp=x2-yymin;
-		yp=x3;
+		yp=x3-zzmin;
 
 		r2=(zp-xcz)*(zp-xcz);
                 r1=(xp-xcx)*(xp-xcx);
@@ -415,11 +440,14 @@ delta_z=0.08e6;
 		cc_pos(pGrid,ie,je,ke,&x1,&x2,&x3);
 		xxmax=x1;
 		yymax=x2;
+                zzmax=x3;
 		cc_pos(pGrid,is,js,ks,&x1,&x2,&x3);
 		xxmax=xxmax-x1;
 		yymax=yymax-x2;
+                zzmax=zzmax-x3;
 		xxmin=x1;
 		yymin=x2;
+                zzmin=x3;
 	}
 
 
@@ -432,18 +460,32 @@ delta_z=0.08e6;
 
 		xp=x1-xxmin;
 		yp=x2-yymin;
-		zp=x3;
+		zp=x3-zzmin;
 
-		r2=(x3-xcz)*(x3-xcz);
+		r3=(x3-xcz)*(x3-xcz);
+		r2=(yp-xcy)*(yp-xcy);
+                r1=(xp-xcx)*(xp-xcx);
+
 		
-		exp_z=exp(-r2/(delta_z*delta_z));
-		exp_xyz=sin(PI*xp*(n1+1)/xxmax)*sin(PI*yp*(n2+1)/yymax)*exp_z;
+		exp_z=exp(-r3/(delta_z*delta_z));
+
+                exp_x=exp(-r1/(delta_x*delta_x));
+		exp_y=exp(-r2/(delta_y*delta_y));
+
+
+		//exp_xyz=sin(PI*xp*(n1+1)/xxmax)*sin(PI*yp*(n2+1)/yymax)*exp_z;
+                exp_xyz=exp_x*exp_y*exp_z;
 
 		vvz=AA*exp_xyz*tdep;
-                vvz=0;
+                //vvz=0;
 
 		pGrid->U[k][j][i].M3 += (pGrid->dt)*vvz*(pGrid->U[k][j][i].d);
 		pGrid->U[k][j][i].E += (pGrid->dt)*vvz*vvz*(pGrid->U[k][j][i].d)/2.0;
+
+               //if(k==12 && i==59)
+               //     printf("%d %d %d %f %f %f %f %f %f %f %f\n",i,j,k,xp-xcx,zp-xcz,tdep,xcz,xcx,exp_y,exp_z,delta_x); 
+
+
 	      }
 
 	    }
@@ -689,7 +731,8 @@ static Real grav_pot2(const Real x1, const Real x2, const Real x3)
 static Real grav_pot3(const Real x1, const Real x2, const Real x3)
 {
   //return 287*x3;
-  return 0;
+   return 257.045*x3;
+  //return 0;
 }
 
 
@@ -966,6 +1009,259 @@ pGrid->B3i[k][j][i] =0.0;
 	return status;
 }
 
+
+
+
+static int readasciivacconfig3d(DomainS *pD, char *sacfilename)
+{
+  int status=0;
+
+  int i,j,k;
+  int i1,j1,k1;
+  int tn1,tn2,tn3;
+  int ni,nj,nk;
+  int iif,jf,kf;
+  int is,js,ks;
+  int ie,je,ke;
+  int shift;
+  Real x,y,z,val;
+  Real t;
+  Real x1,x2,x3;
+  int it;
+  int Nx3T, Nx2T, Nx1T;
+  Real *w, *wd;
+
+  char **hlines;
+
+   int ii1,ii2,ii3;
+   int pos1, pos2;
+
+   pos1=0;
+   pos2=1;
+
+   //ni=p.n[0];
+   //nj=p.n[1];
+   is=0;
+   js=0;
+   ks=0;
+
+   //iif=ni;
+   //jf=nj;
+
+  // #ifdef USE_SAC_3D
+  // nk=p.n[2];
+  // kf=nk;
+  // #endif
+
+   GridS *pGrid = pD->Grid;
+   is = pGrid->is;  ie = pGrid->ie;
+   js = pGrid->js;  je = pGrid->je;
+   ks = pGrid->ks;  ke = pGrid->ke;
+
+is=is-nghost;
+js=js-nghost;
+ks=ks-nghost;
+
+printf("is,ie %d %d %d %d %d %d \n",is,js,ks,ie,je,ke);
+printf("Nx %d %d %d\n",pGrid->Nx[0],pGrid->Nx[1],pGrid->Nx[2]);
+
+
+ // cc_pos(pGrid,is,i+js,ks,&x1,&x2,&x3);
+
+
+    
+  
+printf("reading %s %d %d\n",sacfilename,ni,nj);
+   FILE *fdt=fopen(sacfilename,"r+");
+//FILE *fdt=fopen("zero1_np0201_001.ini","r+");
+   //char **hlines;
+   char *line;
+   hlines=(char **)calloc(5, sizeof(char*));
+   for(i=0; i<5; i++)
+       hlines[i]=(char *)calloc(200,sizeof(char));
+freadl(fdt, &hlines[0]);
+     printf("%s\n", hlines[0]);
+
+fscanf(fdt,"%d %lG %d %d %d\n",&(it),&(t),&ii1,&ii2,&ii3);
+
+  /* Calculate physical size of grid */
+  if (pGrid->Nx[2] > 1)
+    Nx3T = pGrid->Nx[2] + 2*nghost;
+  else
+    Nx3T = 1;
+
+  if (pGrid->Nx[1] > 1)
+    Nx2T = pGrid->Nx[1] + 2*nghost;
+  else
+    Nx2T = 1;
+
+  if (pGrid->Nx[0] > 1)
+    Nx1T = pGrid->Nx[0] + 2*nghost;
+  else
+    Nx1T = 1;
+
+ni=Nx1T;
+nj=Nx2T;
+nk=Nx3T;
+//nk=;
+
+//   #define NVAR 10
+   //#define NDERV 19
+//   #define NDERV 19
+
+ w=(Real *)calloc(13*Nx1T*Nx2T*Nx3T,sizeof(Real));
+ wd=(Real *)calloc(3*Nx1T*Nx2T*Nx3T,sizeof(Real));
+//w=(Real *)calloc(10*ie*je,sizeof(Real));
+// wd=(Real *)calloc(2*ie*je,sizeof(Real));
+
+  // typedef enum vars {rho, mom1, mom2, energy, b1, b2,energyb,rhob,b1b,b2b} CEV;
+  // typedef enum vars {rho, mom1, mom2, mom3, energy, b1, b2, b3,energyb,rhob,b1b,b2b,b3b} CEV;
+
+fscanf(fdt,"%d %d %d\n",&tn1,&tn2,&tn3);
+k=0;
+
+//printf("here %d %d %d %d %d\n",tn1,tn2,tn3, Nx1T, Nx2T);
+printf("here in config %d %d %d %d %d %d %d\n", k,is,js,ks,ie,je,ke);
+
+
+   //read 5 header lines
+   for(i=3;i<5;i++)
+   {
+     freadl(fdt, &hlines[i]);
+     printf("%s\n", hlines[i]);
+   }
+//printf("read ascii header %d %d %d %d\n" , p.ipe, is,iif, js,jf);
+printf("read ascii header %d %d %d %d %d %d %d\n" , nghost, ni,nj,nk,is, js,ks);
+  //fscanf(fdt,"%f",&val);
+ //printf("%f",val);
+
+//for( j1=js;j1<(je);j1++)
+//for( i1=is;i1<(ie);i1++)
+
+//for(k=ks; k<=ke; k++)
+for( i1=is;i1<(ni);i1++)
+for( j1=js;j1<(nj);j1++)
+for( k1=ks;k1<(nk);k1++)
+//for( i1=is;i1<(ie);i1++)
+             {
+
+			//shift=((j1)*ni+(i1));                         
+			//shift=((j1-js)*ni+(i1-is));
+                        // fscanf(fdt,"%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf\n",&wd[shift],&wd[shift+(ni*nj)],&w[shift],&w[shift+(ni*nj)],&w[shift+(ni*nj*2)],&w[shift+(ni*nj*3)],&w[shift+(ni*nj*4)],&w[shift+(ni*nj*5)],&w[shift+(ni*nj*6)],&w[shift+(ni*nj*7)],&w[shift+(ni*nj*8)],&w[shift+(ni*nj*9)]);
+//for( i1=is;i1<(ie);i1++)
+//for(k=ks; k<=ke; k++)
+{
+
+//shift=((j1)*ni+(i1));
+shift=((i1)*nj+(j1));
+
+ fscanf(fdt,"%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf\n",&wd[shift],&wd[shift+(ni*nj*nk)],&wd[shift+2*(ni*nj*nk)],&w[shift],&w[shift+(ni*nj*nk)],&w[shift+(ni*nj*nk*2)],&w[shift+(ni*nj*nk*3)],&w[shift+(ni*nj*nk*4)],&w[shift+(ni*nj*nk*5)],&w[shift+(ni*nj*nk*6)],&w[shift+(ni*nj*nk*7)],&w[shift+(ni*nj*nk*8)],&w[shift+(ni*nj*nk*9)],&w[shift+(ni*nj*nk*10)],&w[shift+(ni*nj*nk*11)],&w[shift+(ni*nj*nk*12)]);
+
+
+//if(i1==0)
+//   printf("here in config1 %d %d  %d %g %g\n", i1,j1,shift,w[shift+(ni*nj*8)],w[shift+(ni*nj*9)]);
+
+
+#ifdef MHD
+//pGrid->B1i[k][j][i] =w[shift+(ni*nj*4)]+w[shift+(ni*nj*8)];
+//pGrid->B2i[k][j][i] =w[shift+(ni*nj*5)]+w[shift+(ni*nj*9)];
+i=i1;
+j=j1;
+k=k1;
+pGrid->B1i[k][j][i] =w[shift+(ni*nj*nk*5)]+w[shift+(ni*nj*nk*10)];
+pGrid->B2i[k][j][i] =w[shift+(ni*nj*nk*6)]+w[shift+(ni*nj*nk*11)];
+pGrid->B3i[k][j][i] =w[shift+(ni*nj*nk*7)]+w[shift+(ni*nj*nk*12)];
+#endif
+// typedef enum vars {rho, mom1, mom2, mom3, energy, b1, b2, b3,energyb,rhob,b1b,b2b,b3b} CEV;
+
+        //add background contributions from sac input file
+	//pGrid->U[k][j][i].d = w[shift]+w[shift+(ni*nj*7)];
+        //pGrid->U[k][j][i].E = w[shift+(ni*nj*3)]+w[shift+(ni*nj*6)];
+	pGrid->U[k][j][i].d = w[shift]+w[shift+(ni*nj*nk*9)];
+        pGrid->U[k][j][i].E = w[shift+(ni*nj*4)]+w[shift+(ni*nj*nk*8)];
+
+	pGrid->U[k][j][i].M1 = w[shift+(ni*nj*nk)];
+        pGrid->U[k][j][i].M2 = w[shift+(ni*nj*nk*2)];
+        pGrid->U[k][j][i].M3 = w[shift+(ni*nj*nk*3)]; ;
+
+
+              //  if(j==63)
+              //      printf("%d %d %d %g %g %g %g  \n",i,j,k,(pGrid->dt), w[shift]+w[shift+(ni*nj*9)],w[shift+(ni*nj*3)]+w[shift+(ni*nj*8)] ,(pGrid->U[k][j][i].d));
+
+
+
+}
+
+              }
+
+//top boundary
+/*for( i1=is;i1<(ie);i1++)
+{
+	pGrid->B1i[k][j][i] =;
+	pGrid->B2i[k][j][i] =;
+	pGrid->B3i[k][j][i] =;
+
+	pGrid->U[k][j][i].d = ;
+        pGrid->U[k][j][i].E = ;
+
+	pGrid->U[k][j][i].M1 = ;
+        pGrid->U[k][j][i].M2 = ;
+        pGrid->U[k][j][i].M3 = ;
+
+}*/
+
+
+//bottom boundary
+/*for( i1=is;i1<(ie);i1++)
+{
+	pGrid->B1i[k][j][i] =;
+	pGrid->B2i[k][j][i] =;
+	pGrid->B3i[k][j][i] =;
+
+	pGrid->U[k][j][i].d = ;
+        pGrid->U[k][j][i].E = ;
+
+	pGrid->U[k][j][i].M1 = ;
+        pGrid->U[k][j][i].M2 = ;
+        pGrid->U[k][j][i].M3 = ;
+}*/
+
+
+//left boundary
+/*for( j=js;j<(je);j++)
+{
+	pGrid->B1i[k][j][i] =;
+	pGrid->B2i[k][j][i] =;
+	pGrid->B3i[k][j][i] =;
+
+	pGrid->U[k][j][i].d = ;
+        pGrid->U[k][j][i].E = ;
+
+	pGrid->U[k][j][i].M1 = ;
+        pGrid->U[k][j][i].M2 = ;
+        pGrid->U[k][j][i].M3 = ;
+}*/
+
+
+
+//right boundary
+
+
+
+	      fclose(fdt);
+
+
+        free(w);
+        free(wd);
+
+//printf("here end:%d %d %d %d\n",is,js,ie,je);
+
+	return status;
+}
+
+
+
+
 /*----------------------------------------------------------------------------*/
 /*! \fn static void outflow_ix1(GridS *pGrid)
  *  \brief Special reflecting boundary functions in x2 for 2D sims
@@ -998,7 +1294,7 @@ static void outflow_ox1(GridS *pGrid)
 
 static void outflow_ix2(GridS *pGrid)
 {
- 
+
   return;
 }
 
@@ -1031,7 +1327,7 @@ static void outflow_ix3(GridS *pGrid)
 
 static void outflow_ox3(GridS *pGrid)
 {
- 
+
   return;
 }
 
