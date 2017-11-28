@@ -205,7 +205,7 @@ if (pGrid->Nx[2] == 1) {
 */
 
   StaticGravPot = grav_pot2;
-  bvals_mhd_fun(pDomain, left_x2,  outflow_ix2);
+ bvals_mhd_fun(pDomain, left_x2,  outflow_ix2);
   bvals_mhd_fun(pDomain, right_x2, outflow_ox2);
   bvals_mhd_fun(pDomain, left_x1,  outflow_ix1);
   bvals_mhd_fun(pDomain, right_x1, outflow_ox1);
@@ -242,11 +242,29 @@ bvals_mhd_fun(pDomain, right_x3, outflow_ox3);
 
 if(readasciivacconfig3d(pDomain, sacfilename)!=0)
      ath_error("[main]: Bad Restart sac filename: %s\n",sacfilename);
+
+
+  for (k=0; k<pGrid->Nx[2]+2*nghost; k++) {
+    for (j=0; j<pGrid->Nx[1]+2*nghost; j++) {
+      for (i=0; i<pGrid->Nx[0]+2*nghost; i++) {
+        cc_pos(pGrid,i,j,k,&x1,&x2,&x3);
+
+        //b0=1;
+        b0=0;
+#ifdef MHD
+	pGrid->B3i[k][j][i] = b0;
+	pGrid->U[k][j][i].B3c = b0;
+        pGrid->U[k][j][i].E += 0.5*b0*b0;
+#endif
+      }
+    }
+}
+
+
+
+
+
   } /* end of 3D initialization */
-
-
-
-
 
 
 
@@ -279,27 +297,49 @@ void problem_read_restart(MeshS *pM, FILE *fp)
 {
   int nl,nd;
 
+ StaticGravPot = grav_pot3;
+
+ // if (pDomain->Disp[2] == 0) bvals_mhd_fun(pDomain, left_x3,  outflow_ix3);
+ // if (pDomain->MaxX[2] == pDomain->RootMaxX[2])
+ //   bvals_mhd_fun(pDomain, right_x3, outflow_ox3);
+ // bvals_mhd_fun(pDomain, left_x2,  outflow_ix2);
+ // bvals_mhd_fun(pDomain, right_x2, outflow_ox2);
+ // bvals_mhd_fun(pDomain, left_x1,  outflow_ix1);
+//  bvals_mhd_fun(pDomain, right_x1, outflow_ox1);
+
+
+
+//bvals_mhd_fun(pDomain, left_x3,  outflow_ix3);
+//bvals_mhd_fun(pDomain, right_x3, outflow_ox3);
   
-
-
-
-
-  if (pM->Nx[2] == 1) {
-    StaticGravPot = grav_pot2;
+// if (pM->Nx[0] == 1) {
+   // StaticGravPot = grav_pot2;
     for (nl=0; nl<(pM->NLevels); nl++){
       for (nd=0; nd<(pM->DomainsPerLevel[nl]); nd++){
-      ;//  bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x2,  outflow_ix2);
-       ;// bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x2, outflow_ox2);
+       ;//bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x1,  outflow_ix1);
+      ;// bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x1, outflow_ox1);
       }
     }
-  }
+ // }
+
+
+
+ // if (pM->Nx[2] == 1) {
+ //   StaticGravPot = grav_pot2;
+    for (nl=0; nl<(pM->NLevels); nl++){
+      for (nd=0; nd<(pM->DomainsPerLevel[nl]); nd++){
+       ;//bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x2,  outflow_ix2);
+       ;//bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x2, outflow_ox2);
+      }
+    }
+  //}
  
   if (pM->Nx[2] > 1) {
     StaticGravPot = grav_pot3;
     for (nl=0; nl<(pM->NLevels); nl++){
       for (nd=0; nd<(pM->DomainsPerLevel[nl]); nd++){
-       ;// bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x3,  outflow_ix3);
-       ;// bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x3, outflow_ox3);
+       ;//bvals_mhd_fun(&(pM->Domain[nl][nd]), left_x3,  outflow_ix3);
+       ;//bvals_mhd_fun(&(pM->Domain[nl][nd]), right_x3, outflow_ox3);
       }
     }
   }
@@ -342,13 +382,15 @@ int i, is=pGrid->is, ie = pGrid->ie;
 
   int n1,n2;
 
-  n1=0;
-  n2=0;
+  n1=2;
+  n2=2;
 
 
   s_period=30.0; //Driver period
-  AA=350.0;       //Driver amplitude
-  //AA=0.0;
+  //AA=350.0;       //Driver amplitude
+  AA=117.0;
+
+  AA=1000;
   //AA=1;
   xcz=0.5e6;
   xcx=2.0e6;
@@ -356,7 +398,10 @@ int i, is=pGrid->is, ie = pGrid->ie;
   //delta_z=0.004e6;
   //delta_z=0.016e6;
   //delta_x=0.016e6;
-  delta_z=0.08e6;
+  //delta_z=0.08e6;
+
+delta_z=0.004e6;//for 3d
+delta_z=0.08e6;//for 2d
   delta_x=0.08e6;
   delta_y=0.08e6;
 
@@ -442,9 +487,9 @@ int i, is=pGrid->is, ie = pGrid->ie;
 		yymax=x2;
                 zzmax=x3;
 		cc_pos(pGrid,is,js,ks,&x1,&x2,&x3);
-		xxmax=xxmax-x1;
-		yymax=yymax-x2;
-                zzmax=zzmax-x3;
+		//xxmax=xxmax-x1;
+		//yymax=yymax-x2;
+                //zzmax=zzmax-x3;
 		xxmin=x1;
 		yymin=x2;
                 zzmin=x3;
@@ -469,21 +514,21 @@ int i, is=pGrid->is, ie = pGrid->ie;
 		
 		exp_z=exp(-r3/(delta_z*delta_z));
 
-                exp_x=exp(-r1/(delta_x*delta_x));
-		exp_y=exp(-r2/(delta_y*delta_y));
+                //exp_x=exp(-r1/(delta_x*delta_x));
+		//exp_y=exp(-r2/(delta_y*delta_y));
 
 
-		//exp_xyz=sin(PI*xp*(n1+1)/xxmax)*sin(PI*yp*(n2+1)/yymax)*exp_z;
-                exp_xyz=exp_x*exp_y*exp_z;
+		exp_xyz=sin(PI*xp*(n1+1)/xxmax)*sin(PI*yp*(n2+1)/yymax);
+                //exp_xyz=exp_x*exp_y*exp_z;
 
-		vvz=AA*exp_xyz*tdep;
+		vvz=AA*exp_xyz*exp_z*tdep;
                 //vvz=0;
 
 		pGrid->U[k][j][i].M3 += (pGrid->dt)*vvz*(pGrid->U[k][j][i].d);
 		pGrid->U[k][j][i].E += (pGrid->dt)*vvz*vvz*(pGrid->U[k][j][i].d)/2.0;
 
-               //if(k==12 && i==59)
-               //     printf("%d %d %d %f %f %f %f %f %f %f %f\n",i,j,k,xp-xcx,zp-xcz,tdep,xcz,xcx,exp_y,exp_z,delta_x); 
+               if(k==12 && i==59)
+                    printf("%d %d %d %f %f %f %f %f %f %f %f\n",i,j,k,xp-xcx,zp-xcz,tdep,xcz,xcx,vvz,exp_z,exp_xyz); 
 
 
 	      }
@@ -713,7 +758,7 @@ static Real grav_pot1(const Real x1, const Real x2, const Real x3)
 
 static Real grav_pot2(const Real x1, const Real x2, const Real x3)
 {
-  //return 28.7*x2;
+  //return 287*x2;
   // 1  return 259*x2;  -0.1
   // 2 return 256*x2;  0.054
   // 3 return 257*x2;   0.01
@@ -722,7 +767,8 @@ static Real grav_pot2(const Real x1, const Real x2, const Real x3)
   //6  return 257.15*x2; -0.18 after10
   //7 return 257.05*x2;  -76t -107b 0.02
   //8 return 257.1*x2;  76t -107b
-   return 257.045*x2;
+  // return 257.045*x2;
+   return 257.005*x2;
   //return 0;
 }
 /*! \fn static Real grav_pot3(const Real x1, const Real x2, const Real x3)
@@ -731,8 +777,8 @@ static Real grav_pot2(const Real x1, const Real x2, const Real x3)
 static Real grav_pot3(const Real x1, const Real x2, const Real x3)
 {
   //return 287*x3;
-   return 257.045*x3;
-  //return 0;
+  // return 257.045*x3;
+  return 0;
 }
 
 
@@ -1004,7 +1050,7 @@ pGrid->B3i[k][j][i] =0.0;
         free(w);
         free(wd);
 
-//printf("here end:%d %d %d %d\n",is,js,ie,je);
+printf("here end:%d %d %d %d\n",is,js,ie,je);
 
 	return status;
 }
